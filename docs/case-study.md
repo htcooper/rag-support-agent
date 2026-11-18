@@ -1,8 +1,8 @@
-# Case study: measuring a retrieval fix in a traced RAG agent
+# Case study: two measured fixes to a traced RAG agent
 
 ## The question
 
-Does restating a user's question in the documentation's vocabulary before searching make a FastAPI support agent answer better, and by how much? The answer had to come from measurement: a written prediction, a held-out set, repeated runs, and confidence intervals.
+Which changes make a FastAPI support agent answer better, and by how much? Each change here got a written prediction, a held-out check, repeated runs, and confidence intervals. The first fix targeted retrieval; measuring it showed the next bottleneck, and the second fix targeted that.
 
 ## The eval
 
@@ -61,7 +61,7 @@ The first full v1 run marked `live-updates` unsupported because the answer linke
 
 The fix builds the judge's documents from the same blocks sent to the agent, and a regression test checks that every field the agent sees (title, source line, and text) reaches the judge. Results from the old judge were archived, not mixed in, and both variants were re-run from scratch.
 
-## Results
+## v1 results
 
 Two runs per case for each variant. Each case's runs are averaged first, and intervals are computed over cases, because two runs of one question aren't independent.
 
@@ -79,14 +79,57 @@ Two runs per case for each variant. Each case's runs are averaged first, and int
 - **Cost and speed:** $0.0331 to $0.0345 per answer, with median latency 5.9 s to 6.8 s. The rewrite itself costs about $0.00004.
 - **Noise:** 37 of 39 baseline cases and 33 of 39 v1 cases got the same result on both runs. The rest flipped between runs of identical code, so a single run of one case is weak evidence.
 
-## What's left
+## The next bottleneck: added details
 
 With retrieval fixed, the main failure moved to the answer. In 6 of v1's 8 imperfect cases the right page was retrieved, and the answer added a small detail the excerpts don't state: "check `content_type` yourself," "the `finally` block makes sure `close()` runs," "the threadpool hop has a cost." Whether or not each detail is correct, it isn't in the retrieved docs, so under this eval's rule it counts as unsupported.
 
-The other two are retrieval misses: `login-form` on both runs and `nested-list` on one.
+## v2: a stricter answer prompt
+
+v2 keeps v1's retrieval and adds three rules to the end of the answer prompt:
+
+- Every statement must come from the documents, with no added facts, tips, caveats, or recommendations, even true ones.
+- Link only to URLs from a document's "Source:" line.
+- Base code on the documents' examples, adapting names and values but adding no imports, parameters, or options.
+
+Nothing else changes, so v2 is compared directly with v1's runs. A stricter prompt can backfire by making answers thinner or more likely to decline, so two guardrails were set in advance: "answers the question" must stay at 95% or higher, and no should-answer question may be declined.
+
+Prediction, written and committed before the run: "every claim supported" from 86% to about 95%, and pass from 87% to about 92%.
+
+## v2 results
+
+| Cases | v1 | v2 | Change (95% CI) |
+|---|---|---|---|
+| All 39 | 87% | 95% | +8 pts (0 to +15) |
+| Should answer, dev (22) | 89% | 98% | +9 pts (−3 to +21) |
+| Should answer, held-out (10) | 75% | 85% | +10 pts (−3 to +23) |
+| Should decline (5) | 100% | 100% | 0 |
+| Prompt injection (2) | 100% | 100% | 0 |
+| Every claim supported (32) | 86% | 98% | +12.5 pts (+3 to +22) |
+
+- **Both measures beat the prediction:** "supported" reached 98% against a predicted 95%, and pass reached 95% against a predicted 92%.
+- **"Supported" is the clearer result.** Its interval excludes zero. The pass-rate interval's lower bound sits at zero, so the pass-rate gain from this step alone is borderline.
+- **The guardrails held.** "Answers the question" stayed at 98%, no should-answer question was declined, and answers didn't get shorter (median 229 words, against 222 in v1).
+- **Six cases were fixed,** and one got worse: `cors` failed on one of its two runs. Its code example combines `allow_credentials=True` with wildcard methods and headers, which the cited docs warn against.
+- **Noise:** 37 of 39 v2 cases got the same result on both runs, against 33 in v1.
+- **Cost and speed:** $0.0345 to $0.0366 per answer, and median latency rose from 6.8 s to 8.2 s.
+
+## Baseline to v2
+
+| Cases | Baseline | v2 | Change (95% CI) |
+|---|---|---|---|
+| All 39 | 74% | 95% | +21 pts (+9 to +32) |
+| Should answer, dev (22) | 68% | 98% | +30 pts (+12 to +47) |
+| Should answer, held-out (10) | 70% | 85% | +15 pts (−6 to +36) |
+| Retrieval Hit@5 (32) | 75% | 95% | +20 pts (+6 to +34) |
+
+Together, the two changes raise the pass rate by 21 points with an interval well above zero, for $0.0035 more and 2.3 seconds longer per answer. The held-out interval still includes zero; with 10 questions it is too wide to confirm the gain on its own.
+
+## What's left
+
+Three cases still fail at least once: `login-form` misses retrieval on both runs, `nested-list` misses on one run, and `cors` failed once as described above.
 
 Next steps, in order:
 
-1. Tighten the answer prompt against adding outside details, with the expected effect written first, and measure it the same way.
-2. Look at `login-form` retrieval: the question is about a login form, and all 5 results come from the OAuth2 and HTTP Basic security pages instead of the form-data page, even though the rewrite names `Form` parameters.
-3. Add cases. At 39, the interval on the overall change is about ±14 points; about 100 cases would narrow it to roughly ±9.
+1. Look at `login-form` retrieval: the question is about a login form, and all 5 results come from the OAuth2 and HTTP Basic security pages instead of the form-data page, even though the rewrite names `Form` parameters.
+2. Check whether v2's extra 1.4 seconds of median latency matters for the use case, and if it does, measure a lower effort setting against the same eval.
+3. Add cases. At 39, the interval on a change is about ±7 to ±14 points; about 100 cases would narrow it by roughly 40%.

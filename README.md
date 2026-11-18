@@ -2,7 +2,7 @@
 
 A support agent that answers FastAPI questions from FastAPI's own documentation, with cited sources. Every step of each answer is traced in Langfuse, and quality is measured by an eval set of 39 cases.
 
-**Headline result:** adding a query-rewriting step raised retrieval Hit@5 from 75% to 95% (+20 points, 95% CI +6 to +34) and the pass rate from 74% to 87% (+13 points, CI −1 to +27), for $0.0014 more per answer. The full story, including a grader bug found and fixed along the way, is in [the case study](docs/case-study.md).
+**Headline result:** two measured changes, a query-rewriting step and a stricter answer prompt, raised the pass rate from 74% to 95% (+21 points, 95% CI +9 to +32), for $0.0035 more and 2.3 seconds longer per answer. Rewriting lifted retrieval Hit@5 from 75% to 95%; the stricter prompt lifted "every claim supported by the docs" from 86% to 98%. The full story, including a grader bug found and fixed along the way, is in [the case study](docs/case-study.md).
 
 ## How it works
 
@@ -19,7 +19,7 @@ flowchart LR
 
 1. **Rewrite.** Claude Haiku 5.5 restates the question in the documentation's vocabulary ("my React app gets blocked" becomes "CORSMiddleware allow_origins…").
 2. **Retrieve.** The question plus the rewrite is embedded with OpenAI `text-embedding-3-small` and matched against 999 doc chunks by cosine similarity in NumPy.
-3. **Generate.** Claude Opus 5.5 receives the original question and the top 5 chunks as document blocks with citations enabled. It answers only from those documents, or says the docs don't cover the question.
+3. **Generate.** Claude Opus 5.5 receives the original question and the top 5 chunks as document blocks with citations enabled. It answers only from those documents, or says the docs don't cover the question. The prompt (v2) adds rules against any fact, tip, link, or code option the documents don't state.
 4. **Check.** Every citation must point to a retrieved chunk and quote text that appears in it. Links in the answer are filtered against a domain allowlist.
 
 ## Tracing
@@ -36,7 +36,7 @@ answer_question            chain
 
 Eval runs attach six scores to each trace: `pass`, `hit_at_5`, `mrr`, `cites_expected`, `supported`, and `answers`.
 
-The screenshots below show one eval trace, for the question "My React app on localhost:3000 gets blocked when it calls my FastAPI backend. How do I fix it?" [docs/sample-trace.json](docs/sample-trace.json) is the full export of the same trace, with every step's input, output, tokens, cost, and scores. Langfuse's free tier keeps data for 30 days and shows trace content only to logged-in viewers, so the screenshots and the export are the lasting record.
+The screenshots below show one v1 eval trace (rewriting on, original prompt), for the question "My React app on localhost:3000 gets blocked when it calls my FastAPI backend. How do I fix it?" [docs/sample-trace.json](docs/sample-trace.json) is the full export of the same trace, with every step's input, output, tokens, cost, and scores. Langfuse's free tier keeps data for 30 days and shows trace content only to logged-in viewers, so the screenshots and the export are the lasting record.
 
 **The rewrite step** turns the user's words into the docs' terms:
 
@@ -58,18 +58,19 @@ Only this project's spans are exported to Langfuse. The Anthropic SDK's automati
 
 A should-answer case passes when an expected page is retrieved and cited, and a Claude Sonnet 5.5 judge finds that every claim is supported by the retrieved documents and that the answer addresses the question. Details from the model's own knowledge count as unsupported, even when correct.
 
-| Cases | Baseline | With rewriting |
-|---|---|---|
-| All 39 | 74% | 87% |
-| Should answer, dev (22) | 68% | 89% |
-| Should answer, held-out (10) | 70% | 75% |
-| Should decline (5) | 100% | 100% |
-| Prompt injection (2) | 100% | 100% |
-| Retrieval Hit@5 (32) | 75% | 95% |
-| Cost per answer | $0.0331 | $0.0345 |
-| Median latency | 5.9 s | 6.8 s |
+| Cases | Baseline | v1: rewriting | v2: + strict prompt |
+|---|---|---|---|
+| All 39 | 74% | 87% | 95% |
+| Should answer, dev (22) | 68% | 89% | 98% |
+| Should answer, held-out (10) | 70% | 75% | 85% |
+| Should decline (5) | 100% | 100% | 100% |
+| Prompt injection (2) | 100% | 100% | 100% |
+| Retrieval Hit@5 (32) | 75% | 95% | 95% |
+| Every claim supported (32) | 78% | 86% | 98% |
+| Cost per answer | $0.0331 | $0.0345 | $0.0366 |
+| Median latency | 5.9 s | 6.8 s | 8.2 s |
 
-Full results: [comparison](evals/comparison.md), [retrieval and wording variations](evals/retrieval.md), [baseline](evals/results-baseline.md), [v1](evals/results-v1.md), and [the question set](evals/cases.md). Per-case transcripts are in `.claude/hillclimb/support-answer/`.
+Full results: comparisons of [baseline and v1](evals/comparison-baseline-v1.md), [v1 and v2](evals/comparison-v1-v2.md), and [baseline and v2](evals/comparison-baseline-v2.md); [retrieval and wording variations](evals/retrieval.md); results for the [baseline](evals/results-baseline.md), [v1](evals/results-v1.md), and [v2](evals/results-v2.md); and [the question set](evals/cases.md). Per-case transcripts are in `.claude/hillclimb/support-answer/`.
 
 ## Security model
 
@@ -85,7 +86,7 @@ The eval's two injection cases plant a malicious chunk at the top of the results
 
 ## Design decisions
 
-- **Answers: Claude Opus 5.5,** chosen as a strong model for grounded answers, less likely to state things the documents don't support. It costs about $0.033 per answer. Even so, the eval catches it adding unstated details in some answers, which is the main remaining failure ([case study](docs/case-study.md#whats-left)). The model is set by the `CLAUDE_MODEL` environment variable, so a cheaper model can be swapped in and measured with the same eval.
+- **Answers: Claude Opus 5.5,** chosen as a strong model for grounded answers, less likely to state things the documents don't support. It costs about $0.033 per answer. Even so, the eval caught it adding unstated details in 6 of v1's 8 imperfect cases; v2's stricter prompt cut that failure from 14% of should-answer questions to 2% ([case study](docs/case-study.md#v2-a-stricter-answer-prompt)). The model is set by the `CLAUDE_MODEL` environment variable, so a cheaper model can be swapped in and measured with the same eval.
 - **Embeddings: OpenAI `text-embedding-3-small`.** Claude has no embedding endpoint, and this model is inexpensive: indexing all 999 chunks cost under a cent.
 - **Search: NumPy, not a vector database.** 999 chunks fit in memory, cosine search is a few readable lines, and there's no extra service to run.
 - **Citations through document blocks.** Each retrieved chunk goes to Claude as a document block with citations enabled, so every claim points to a passage that can be checked, and doc text never enters the system prompt.
@@ -103,11 +104,11 @@ python -m venv .venv
 .venv/Scripts/pip install -e ".[dev]"        # .venv/bin/pip on macOS/Linux
 .venv/Scripts/python -I -m rag_support ingest   # download, verify, sanitize, chunk
 .venv/Scripts/python -I -m rag_support index    # embed 999 chunks, about $0.01
-.venv/Scripts/python -I -m rag_support ask "How do I enable CORS?" --rewrite
+.venv/Scripts/python -I -m rag_support ask "How do I enable CORS?"   # --no-rewrite / --no-strict for the baseline
 .venv/Scripts/python -m pytest                  # 168 tests, no API calls
 ```
 
-The eval runner (`evals/run.py`) costs about $3.50 per variant at two runs per case and refuses to run until its code is approved with `--approve-harness`, so grading can't change unnoticed between runs.
+The eval runner (`evals/run.py`) costs about $3.40 to $3.70 per variant at two runs per case and refuses to run until its code is approved with `--approve-harness`, so grading can't change unnoticed between runs.
 
 ## Attribution
 

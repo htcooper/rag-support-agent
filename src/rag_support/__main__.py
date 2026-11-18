@@ -148,14 +148,17 @@ def main(argv: list[str] | None = None) -> int:
     p_ask.add_argument(
         "--public", action="store_true", help="make the trace viewable by link"
     )
+    # On by default: the eval measured both as improvements (v1 and v2).
     p_ask.add_argument(
         "--rewrite",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
+        default=True,
         help="restate the question in the docs' vocabulary before searching",
     )
     p_ask.add_argument(
         "--strict",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
+        default=True,
         help="forbid details the retrieved docs don't state",
     )
     p_ask.set_defaults(func=cmd_ask)
