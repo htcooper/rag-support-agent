@@ -8,7 +8,6 @@ version = "0.1.0"
 description = "A traced RAG support agent that answers FastAPI questions from its docs."
 readme = "README.md"
 requires-python = ">=3.12"
-license = "MIT"
 dependencies = [
     "anthropic",
     "openai",
