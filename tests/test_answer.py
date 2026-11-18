@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import json
+import re
 from types import SimpleNamespace as NS
 from typing import Any
 
+import numpy as np
 import pytest
 
 from rag_support.answer import (
@@ -15,6 +18,7 @@ from rag_support.answer import (
 )
 from rag_support.chunking import Chunk
 from rag_support.retrieve import Hit
+from tests.fakes_tracing import RecordingTracer
 
 
 def chunk(key: str, text: str) -> Chunk:
@@ -134,8 +138,26 @@ def test_links_outside_the_allowlist_are_removed() -> None:
     assert answer.links_removed == 2
 
 
+class FakeEmbedder:
+    model = "text-embedding-3-small"
+
+    def __init__(self) -> None:
+        self.tokens_used = 0
+
+    def embed(self, texts: list[str]) -> np.ndarray:
+        self.tokens_used += 7 * len(texts)
+        return np.ones((len(texts), 4), dtype=np.float32)
+
+
 class FakeRetriever:
-    def retrieve(self, query: str, k: int = 5) -> list[Hit]:
+    def __init__(self) -> None:
+        self.embedder = FakeEmbedder()
+
+    def embed_query(self, query: str) -> np.ndarray:
+        vector: np.ndarray = self.embedder.embed([query])[0]
+        return vector
+
+    def search(self, vector: np.ndarray, k: int = 5) -> list[Hit]:
         return HITS[:k]
 
 
@@ -159,3 +181,71 @@ def test_answer_question_uses_env_model_and_k(monkeypatch: pytest.MonkeyPatch) -
     assert client.requests[0]["model"] == "claude-sonnet-5-5"
     assert len(client.requests[0]["messages"][0]["content"]) == 2
     assert answer.grounded
+    assert answer.trace_url is None  # tracing is off by default
+
+
+def traced_answer(public: bool = False) -> tuple[RecordingTracer, Any]:
+    tracer = RecordingTracer()
+    client = FakeClient(response(text_block("A.", cite(0, "CORSMiddleware"))))
+    answer = answer_question(
+        "How do I enable CORS?",
+        FakeRetriever(),  # type: ignore[arg-type]
+        client,
+        model="claude-opus-5-5",
+        tracer=tracer,
+        public=public,
+    )
+    return tracer, answer
+
+
+def test_trace_is_retrieve_then_generate_with_embedding_inside_retrieve() -> None:
+    tracer, answer = traced_answer()
+    assert [(s.name, s.as_type, s.parent) for s in tracer.spans] == [
+        ("answer_question", "chain", None),
+        ("retrieve", "retriever", "answer_question"),
+        ("embed_query", "embedding", "retrieve"),
+        ("generate", "generation", "answer_question"),
+    ]
+    assert tracer.by_name("answer_question").updates["output"]["grounded"] is True
+    assert answer.trace_url == "https://langfuse.example/trace/1"
+    assert not tracer.public
+
+
+def test_trace_records_retrieval_and_generation_details() -> None:
+    tracer, _ = traced_answer()
+    hits = tracer.by_name("retrieve").updates["output"]
+    assert [h["chunk_id"] for h in hits] == ["cors", "files"]
+    assert hits[0]["url"] == "https://fastapi.tiangolo.com/cors/"
+
+    embed = tracer.by_name("embed_query").updates
+    assert embed["usage_details"] == {"input": 7}
+
+    gen = tracer.by_name("generate")
+    assert gen.fields["model"] == "claude-opus-5-5"
+    assert gen.updates["usage_details"] == {"input": 1200, "output": 150}
+    assert gen.updates["cost_details"]["total"] == pytest.approx(
+        1200 * 4 / 1e6 + 150 * 20 / 1e6
+    )
+    assert gen.updates["metadata"]["cited_ranks"] == [1]
+
+
+def test_public_flag_marks_the_trace_public() -> None:
+    tracer, _ = traced_answer(public=True)
+    assert tracer.public
+
+
+def test_trace_contains_no_secrets(monkeypatch: pytest.MonkeyPatch) -> None:
+    sentinel = "sk-test-sentinel-0000000000000000"
+    for var in (
+        "ANTHROPIC_API_KEY",
+        "OPENAI_API_KEY",
+        "LANGFUSE_SECRET_KEY",
+        "LANGFUSE_PUBLIC_KEY",
+    ):
+        monkeypatch.setenv(var, sentinel)
+    tracer, _ = traced_answer()
+    payload = json.dumps(
+        [{"fields": s.fields, "updates": s.updates} for s in tracer.spans], default=str
+    )
+    assert sentinel not in payload
+    assert not re.search(r"\b(sk|pk)-[A-Za-z0-9-]{8,}", payload)

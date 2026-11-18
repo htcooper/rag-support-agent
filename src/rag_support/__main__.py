@@ -13,6 +13,7 @@ from rag_support.embeddings import OpenAIEmbedder
 from rag_support.index import build_index
 from rag_support.ingest import pin, run_ingest
 from rag_support.retrieve import Index, Retriever
+from rag_support.tracing import NoopTracer, make_tracer
 
 LOCK_PATH = Path("sources.lock.json")
 DATA_DIR = Path("data")
@@ -60,9 +61,17 @@ def cmd_ask(args: argparse.Namespace) -> None:
 
     index = Index.load(DATA_DIR)
     retriever = Retriever(index, OpenAIEmbedder(model=index.info["model"]))
+    tracer = make_tracer()
+    if args.public and isinstance(tracer, NoopTracer):
+        sys.exit("--public needs tracing: set the Langfuse keys in .env.")
     try:
         answer = answer_question(
-            args.question, retriever, anthropic.Anthropic(), effort=args.effort
+            args.question,
+            retriever,
+            anthropic.Anthropic(),
+            effort=args.effort,
+            tracer=tracer,
+            public=args.public,
         )
     except anthropic.AuthenticationError:
         sys.exit("Anthropic rejected the API key. Check ANTHROPIC_API_KEY in .env.")
@@ -74,6 +83,8 @@ def cmd_ask(args: argparse.Namespace) -> None:
         sys.exit(f"Anthropic API error {e.status_code}: {e.message}")
     except anthropic.APIConnectionError:
         sys.exit("Couldn't reach the Anthropic API. Check the network connection.")
+    finally:
+        tracer.flush()  # send the trace even when the call failed
 
     print(answer.text)
     print("\nSources:")
@@ -94,6 +105,9 @@ def cmd_ask(args: argparse.Namespace) -> None:
     if answer.links_removed:
         notes.append(f"links removed: {answer.links_removed}")
     print("\n" + " | ".join(notes))
+    if answer.trace_url:
+        label = "public trace" if args.public else "trace (private)"
+        print(f"{label}: {answer.trace_url}")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -126,6 +140,9 @@ def main(argv: list[str] | None = None) -> int:
     p_ask.add_argument("question")
     p_ask.add_argument(
         "--effort", default=DEFAULT_EFFORT, choices=["low", "medium", "high"]
+    )
+    p_ask.add_argument(
+        "--public", action="store_true", help="make the trace viewable by link"
     )
     p_ask.set_defaults(func=cmd_ask)
 

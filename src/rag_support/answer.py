@@ -19,8 +19,10 @@ from typing import Any
 from rag_support.chunking import Chunk
 from rag_support.retrieve import Hit, Retriever
 from rag_support.sanitize import filter_links
+from rag_support.tracing import NoopTracer, Tracer, cost_details
 
 DEFAULT_MODEL = "claude-opus-5-5"
+PREVIEW_CHARS = 300
 DEFAULT_EFFORT = "medium"
 MAX_TOKENS = 16000
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
@@ -64,6 +66,7 @@ class Answer:
     invalid_citations: int = 0
     links_removed: int = 0
     usage: dict[str, int] = field(default_factory=dict)
+    trace_url: str | None = None
 
     @property
     def refused(self) -> bool:
@@ -163,6 +166,17 @@ def parse_response(question: str, hits: list[Hit], response: Any) -> Answer:
     return answer
 
 
+def _hit_summary(rank: int, hit: Hit) -> dict[str, Any]:
+    return {
+        "rank": rank,
+        "chunk_id": hit.chunk.chunk_id,
+        "score": round(hit.score, 4),
+        "heading": hit.chunk.heading,
+        "url": hit.chunk.url,
+        "preview": " ".join(hit.chunk.text.split())[:PREVIEW_CHARS],
+    }
+
+
 def answer_question(
     question: str,
     retriever: Retriever,
@@ -170,10 +184,90 @@ def answer_question(
     model: str | None = None,
     effort: str = DEFAULT_EFFORT,
     k: int = 5,
+    tracer: Tracer | None = None,
+    public: bool = False,
 ) -> Answer:
+    """Retrieve, then generate, with the trace shaped like the pipeline.
+
+    answer_question
+    |-- retrieve        (embed the question, then vector search)
+    |   `-- embed_query
+    `-- generate        (input is the exact prompt sent to Claude)
+
+    Retrieval contains the slow embedding call, so the two top-level steps
+    never start in the same millisecond and always display in order.
+    """
     model = model or os.environ.get("CLAUDE_MODEL") or DEFAULT_MODEL
-    hits = retriever.retrieve(question, k=k)
-    response = client.beta.messages.create(
-        **build_request(question, hits, model, effort)
-    )
-    return parse_response(question, hits, response)
+    tracer = tracer or NoopTracer()
+    embedder = retriever.embedder
+
+    with tracer.span(
+        "answer_question",
+        as_type="chain",
+        input={"question": question},
+        metadata={"model": model, "effort": effort, "k": k},
+    ) as root:
+        with tracer.span(
+            "retrieve", as_type="retriever", input={"question": question, "k": k}
+        ) as retrieve_span:
+            with tracer.span(
+                "embed_query",
+                as_type="embedding",
+                input=question,
+                model=embedder.model,
+            ) as span:
+                before = getattr(embedder, "tokens_used", 0)
+                vector = retriever.embed_query(question)
+                tokens = getattr(embedder, "tokens_used", 0) - before
+                span.update(
+                    output={"dimensions": int(vector.shape[0])},
+                    usage_details={"input": tokens},
+                    cost_details=cost_details(embedder.model, tokens),
+                )
+            hits = retriever.search(vector, k)
+            retrieve_span.update(
+                output=[_hit_summary(i, h) for i, h in enumerate(hits, 1)]
+            )
+
+        request = build_request(question, hits, model, effort)
+        with tracer.span(
+            "generate",
+            as_type="generation",
+            model=model,
+            input={"system": request["system"], "messages": request["messages"]},
+            model_parameters={"effort": effort, "max_tokens": MAX_TOKENS},
+        ) as span:
+            response = client.beta.messages.create(**request)
+            answer = parse_response(question, hits, response)
+            span.update(
+                output=answer.text,
+                usage_details={
+                    "input": answer.usage["input_tokens"],
+                    "output": answer.usage["output_tokens"],
+                },
+                cost_details=cost_details(
+                    answer.model,
+                    answer.usage["input_tokens"],
+                    answer.usage["output_tokens"],
+                ),
+                metadata={
+                    "served_by": answer.model,
+                    "stop_reason": answer.stop_reason,
+                    "fallback_used": answer.fallback_used,
+                    "cited_ranks": answer.cited_ranks,
+                    "invalid_citations": answer.invalid_citations,
+                    "links_removed": answer.links_removed,
+                },
+            )
+
+        root.update(
+            output={
+                "answer": answer.text,
+                "grounded": answer.grounded,
+                "cited_ranks": answer.cited_ranks,
+            }
+        )
+        if public:
+            tracer.make_public()
+        answer.trace_url = tracer.trace_url()
+    return answer

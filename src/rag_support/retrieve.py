@@ -67,7 +67,14 @@ class Retriever:
         self.index = index
         self.embedder = embedder
 
-    def retrieve(self, query: str, k: int = 5) -> list[Hit]:
+    def embed_query(self, query: str) -> Vectors:
         if not query.strip():
             raise ValueError("query is empty")
-        return self.index.search(self.embedder.embed([query])[0], k)
+        vector: Vectors = self.embedder.embed([query])[0]
+        return vector
+
+    def search(self, query_vector: Vectors, k: int = 5) -> list[Hit]:
+        return self.index.search(query_vector, k)
+
+    def retrieve(self, query: str, k: int = 5) -> list[Hit]:
+        return self.search(self.embed_query(query), k)
