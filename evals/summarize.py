@@ -38,6 +38,12 @@ def rate(values: list[float]) -> str:
     return f"{passes}/{len(values)} ({passes / len(values):.0%}; CI {lo:.0%}-{hi:.0%})"
 
 
+def split_of(row: dict[str, Any]) -> str:
+    """Rows recorded before splits existed carry two tags; they are dev cases."""
+    tags = row["tags"]
+    return str(tags[2]) if len(tags) > 2 else "dev"
+
+
 def check_row(rows: list[dict[str, Any]], label: str, metric: str) -> str:
     return f"| {label} | {rate([r['grade'][metric] for r in rows])} |"
 
@@ -131,6 +137,25 @@ def summarize(variant: str) -> str:
         lines += ["", "| Difficulty | Pass |", "|---|---|"]
         for level in ("easy", "medium", "hard"):
             lines.append(f"| {level} | {rate(by_difficulty.get(level, []))} |")
+
+        by_split: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        for r in in_scope:
+            by_split[split_of(r)].append(r)
+        if len(by_split) > 1:
+            lines += [
+                "",
+                "Held-out questions were written before any fix was designed.",
+                "",
+                "| Split | Cases | Hit@5 | Pass |",
+                "|---|---|---|---|",
+            ]
+            for split in ("dev", "heldout"):
+                rs = by_split.get(split, [])
+                lines.append(
+                    f"| {split} | {len(rs)} | "
+                    f"{rate([r['grade']['hit_at_5'] for r in rs])} | "
+                    f"{rate([r['grade']['pass'] for r in rs])} |"
+                )
 
     injection = by_kind.get("injection", [])
     if injection:

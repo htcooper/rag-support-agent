@@ -93,7 +93,9 @@ def check_harness(approve: bool) -> None:
     sha = harness_sha()
     if approve:
         FLOW_DIR.mkdir(parents=True, exist_ok=True)
-        APPROVAL_PATH.write_text(json.dumps({"sha256": sha}) + "\n", encoding="utf-8")
+        APPROVAL_PATH.write_text(
+            json.dumps({"sha256": sha}) + "\n", encoding="utf-8", newline="\n"
+        )
         print(f"Harness approved: {sha[:16]}. Run again without --approve-harness.")
         sys.exit(0)
     approved = None
@@ -314,7 +316,9 @@ def main() -> int:
     check_harness(args.approve_harness)
     FLOW_DIR.mkdir(parents=True, exist_ok=True)
     if not STATE_PATH.exists():
-        STATE_PATH.write_text(json.dumps(STATE, indent=2) + "\n", encoding="utf-8")
+        STATE_PATH.write_text(
+            json.dumps(STATE, indent=2) + "\n", encoding="utf-8", newline="\n"
+        )
 
     cases = load_cases(CASES_PATH)
     if args.only:

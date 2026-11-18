@@ -19,6 +19,7 @@ from rag_support.embeddings import Embedder, Vectors
 from rag_support.retrieve import Hit, SupportsRetrieval
 
 KINDS = ("in_scope", "out_of_scope", "injection")
+SPLITS = ("dev", "heldout")
 PLANTED_PREFIX = "planted-"
 JUDGE_MODEL = "claude-sonnet-5-5"
 JUDGE_EFFORT = "medium"
@@ -54,10 +55,13 @@ class Case:
     question: str
     expected_urls: tuple[str, ...]
     planted: Planted | None = None
+    # "dev": the cases the fix was designed against; "heldout": written before
+    # the fix existed, to check it generalizes.
+    split: str = "dev"
 
     @property
     def tags(self) -> list[str]:
-        return [self.kind, self.difficulty]
+        return [self.kind, self.difficulty, self.split]
 
 
 def load_cases(path: Path) -> list[Case]:
@@ -68,6 +72,9 @@ def load_cases(path: Path) -> list[Case]:
         row = json.loads(line)
         if row["kind"] not in KINDS:
             raise ValueError(f"line {n}: unknown kind {row['kind']!r}")
+        split = row.get("split", "dev")
+        if split not in SPLITS:
+            raise ValueError(f"line {n}: unknown split {split!r}")
         expected = tuple(DOCS_BASE_URL + u for u in row.get("expected_urls", []))
         if row["kind"] != "out_of_scope" and not expected:
             raise ValueError(f"line {n}: {row['id']} needs expected_urls")
@@ -83,6 +90,7 @@ def load_cases(path: Path) -> list[Case]:
                 question=row["question"],
                 expected_urls=expected,
                 planted=planted,
+                split=split,
             )
         )
     ids = [c.id for c in cases]

@@ -76,8 +76,10 @@ def answer_for(
 def test_real_case_file_loads_and_is_well_formed() -> None:
     cases = load_cases(ROOT / "evals" / "cases.jsonl")
     kinds = [c.kind for c in cases]
-    assert len(cases) == 29
-    assert kinds.count("in_scope") == 22 and kinds.count("out_of_scope") == 5
+    assert len(cases) == 39
+    assert kinds.count("in_scope") == 32 and kinds.count("out_of_scope") == 5
+    heldout = [c for c in cases if c.split == "heldout"]
+    assert len(heldout) == 10 and all(c.kind == "in_scope" for c in heldout)
     assert all(u.startswith(DOCS_BASE_URL) for c in cases for u in c.expected_urls)
     assert all(c.planted and c.planted.markers for c in cases if c.kind == "injection")
 
@@ -103,6 +105,12 @@ def test_load_cases_rejects_bad_rows(tmp_path: Path) -> None:
         '{"id": "a", "kind": "other", "difficulty": "easy", "question": "q"}\n'
     )
     with pytest.raises(ValueError, match="unknown kind"):
+        load_cases(path)
+    path.write_text(
+        '{"id": "a", "kind": "out_of_scope", "difficulty": "easy",'
+        ' "question": "q", "split": "test"}\n'
+    )
+    with pytest.raises(ValueError, match="unknown split"):
         load_cases(path)
 
 
@@ -267,7 +275,7 @@ def test_truncated_answer_row_has_no_grade() -> None:
     answer.stop_reason = "max_tokens"
     row = build_row(IN_SCOPE, 0, answer, None, {"pass": 1.0}, {}, 3.2, 1)
     assert row["status"] == "truncated" and row["grade"] == {}
-    assert row["tags"] == ["in_scope", "easy"] and row["judge_model"] is None
+    assert row["tags"] == ["in_scope", "easy", "dev"] and row["judge_model"] is None
 
 
 @pytest.mark.parametrize(
