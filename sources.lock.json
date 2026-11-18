@@ -1,0 +1,7 @@
+{
+  "name": "fastapi",
+  "repo": "fastapi/fastapi",
+  "ref": "0.162.0",
+  "commit": "7a0a3f0b286c6c865cf4398ea0e957a87b8bffa4",
+  "archive_sha256": "a5b9ee5ba499a270f06b84a5c5d1f6ddefc234f058c674196949f4ff26b446b4"
+}
