@@ -12,7 +12,7 @@ Which changes make a FastAPI support agent answer better, and by how much? Each 
 |---|---|---|
 | Should answer, dev | 22 | An expected page is retrieved and cited, and the judge finds every claim supported and the question answered |
 | Should answer, held-out | 10 | Same; never used to design a change, so it tests whether gains carry over to new questions |
-| Should decline | 5 | The agent declines (Django admin, CSS, Excel, and similar) |
+| Should decline | 5 | The agent declines (unrelated content such as Django admin, CSS, Excel, and similar) |
 | Prompt injection | 2 | A planted malicious chunk is ranked first; the agent ignores it and nothing from it reaches the answer |
 
 The planted chunk skips ingest screening on purpose, so the injection cases test the last layer of defense: the model and the output filter.
@@ -25,7 +25,7 @@ The runner refuses to run if any eval code or grading file changed since it was 
 
 Opus 5.5 answering from the top 5 chunks, two runs per case: **74% pass**. 
 - 11 cases failed at least once
-- 8 of them were retrieval misses on both runs: no expected page in the top 5.
+- 8 of them were retrieval misses on both runs: no expected page in the top 5
 
 The misses shared a pattern. The questions used the user's words, and the docs used feature names:
 
@@ -37,13 +37,17 @@ The misses shared a pattern. The questions used the user's words, and the docs u
 
 ## The change and the prediction
 
-To close that vocabulary gap, v1 adds one step before the search. Claude Haiku 5.5 restates the question as a one-line query in the docs' terms; it's a short, simple task, so the smallest model is enough, at about $0.00004 and 1.5 seconds per question. The search embeds the question plus that query rather than the query alone, so the user's own words still count, and a failed rewrite falls back to the question. Opus still receives only the original question, so a bad rewrite can't change what gets answered, and the answer step stays identical to the baseline's, which keeps the comparison about retrieval alone. The rewriter's instructions name no FastAPI features, and a test enforces this, so the rewriter is never fed the eval's answers.
+**To close that vocabulary gap, v1 added one step before the search.** 
+- Claude Haiku 5.5 restates the question as a one-line query in the docs' terms; it's a short, simple task so the smallest model is enough with a cost of ~$0.00004 and 1.5 seconds per question. 
+- The search embeds the question plus that query rather than the query alone, so the user's own words still count and a failed rewrite falls back to the question. 
+- Opus still receives only the original question, so a bad rewrite can't change what gets answered and the answer step stays identical to the baseline's, which keeps the comparison about retrieval alone. 
+- The rewriter's instructions name no FastAPI features. A test enforces this so the rewriter is never fed the eval's answers.
 
-Prediction, written before the run: dev Hit@5 from 17/22 to at least 20/22, and dev pass rate from 68% to about 82%.
+Prediction, written before the run: dev Hit@5 from **17/22 to at least 20/22**, and dev pass rate from **68% to about 82%**.
 
-## Retrieval first, for $0.0015
+## Retrieval first, for ~$0.0015
 
-Retrieval doesn't need answers or a judge, so it was measured first across the 32 should-answer questions plus a wording set: 5 topics, each asked three ways.
+Retrieval doesn't need answers or a judge so it was measured first across the 32 should-answer questions + a wording set: 5 topics asked three ways (docs' own words, user's words, vague).
 
 | Queries | Hit@5 before | Hit@5 after |
 |---|---|---|
@@ -53,17 +57,17 @@ Retrieval doesn't need answers or a judge, so it was measured first across the 3
 | Wording: user's words (5) | 2/5 | 5/5 |
 | Wording: vague (5) | 2/5 | 4/5 |
 
-12 queries were fixed and none broke. Without rewriting, retrieval fell from 5/5 to 2/5 as wording moved away from the docs' terms; with it, retrieval stayed at 5, 5, and 4. The [retrieval page](../evals/retrieval.md) lists each rewrite.
+12 queries were fixed and none broke. **Without rewriting, retrieval fell from 5/5 to 2/5 as wording moved away from the docs' terms; with it, retrieval stayed at 5, 5, and 4.** The [retrieval page](../evals/retrieval.md) lists each rewrite.
 
 ## A grader bug, found by reading failures
 
 The first full v1 run marked `live-updates` unsupported because the answer linked the Server-Sent Events page, a URL the judge said appeared in no document. The URL was in the documents: each one starts with a `Source: <url>` line. The agent's document blocks had that line, and the judge's copy didn't, because the two were built by separate code.
 
-The fix builds the judge's documents from the same blocks sent to the agent, and a regression test checks that every field the agent sees (title, source line, and text) reaches the judge. Results from the old judge were archived, not mixed in, and both variants were re-run from scratch.
+The fix built the judge's documents from the same blocks sent to the agent, and a regression test checked that every field the agent sees (title, source line, and text) reaches the judge. Results from the old judge were archived, not mixed in, and both variants were re-run from scratch.
 
 ## v1 results
 
-Two runs per case for each variant. Each case's runs are averaged first, and intervals are computed over cases, because two runs of one question aren't independent.
+Two runs per case for each variant. Each case's runs were averaged first, and intervals were computed over cases since two runs of one question aren't independent.
 
 | Cases | Baseline | v1 | Change (95% CI) |
 |---|---|---|---|
@@ -81,17 +85,17 @@ Two runs per case for each variant. Each case's runs are averaged first, and int
 
 ## The next bottleneck: added details
 
-With retrieval fixed, the main failure moved to the answer. In 6 of v1's 8 imperfect cases the right page was retrieved, and the answer added a small detail the excerpts don't state: "check `content_type` yourself," "the `finally` block makes sure `close()` runs," "the threadpool hop has a cost." Whether or not each detail is correct, it isn't in the retrieved docs, so under this eval's rule it counts as unsupported.
+With retrieval fixed, the main failure moved to the answer. In 6 of v1's 8 imperfect cases the right page was retrieved, and the answer added a small detail the excerpts don't state, e.g., "check `content_type` yourself," "the `finally` block makes sure `close()` runs," "the threadpool hop has a cost." **Whether or not each detail is correct, it isn't in the retrieved docs, so under this eval's rule it counts as unsupported.**
 
 ## v2: a stricter answer prompt
 
 v2 keeps v1's retrieval and adds three rules to the end of the answer prompt:
 
-- Every statement must come from the documents, with no added facts, tips, caveats, or recommendations, even true ones.
+- Every statement must come from the documents with no added facts, tips, caveats, or recommendations, even true ones.
 - Link only to URLs from a document's "Source:" line.
 - Base code on the documents' examples, adapting names and values but adding no imports, parameters, or options.
 
-Nothing else changes, so v2 is compared directly with v1's runs. A stricter prompt can backfire by making answers thinner or more likely to decline, so two guardrails were set in advance: "answers the question" must stay at 95% or higher, and no should-answer question may be declined.
+Nothing else changed, so v2 was compared directly with v1's runs. A stricter prompt can backfire by making answers thinner or more likely to decline, so two guardrails were set in advance: "answers the question" must stay at 95% or higher and no should-answer question may be declined.
 
 Prediction, written and committed before the run: "every claim supported" from 86% to about 95%, and pass from 87% to about 92%.
 
@@ -122,7 +126,7 @@ Prediction, written and committed before the run: "every claim supported" from 8
 | Should answer, held-out (10) | 70% | 85% | +15 pts (−6 to +36) |
 | Retrieval Hit@5 (32) | 75% | 95% | +20 pts (+6 to +34) |
 
-Together, the two changes raise the pass rate by 21 points with an interval well above zero, for $0.0035 more and 2.3 seconds longer per answer. The held-out interval still includes zero; with 10 questions it is too wide to confirm the gain on its own.
+Together, the two changes raised the pass rate by 21 points with an interval well above zero, for $0.0035 more and 2.3 seconds longer per answer. The held-out interval still included zero; with 10 questions it is too wide to confirm the gain on its own.
 
 ## What's left
 

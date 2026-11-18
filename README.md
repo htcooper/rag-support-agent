@@ -1,6 +1,6 @@
 # RAG support agent
 
-A support agent that answers FastAPI questions from FastAPI's own documentation, with cited sources. Every step of each answer is traced in Langfuse, and quality is measured by an eval set of 39 cases.
+A support agent that answers FastAPI questions from FastAPI's own documentation, with cited sources. Every step of each answer is traced in Langfuse and quality is measured by an eval set of 39 cases.
 
 **Headline result:** two measured changes, a query-rewriting step and a stricter answer prompt, raised the pass rate from 74% to 95% (+21 points, 95% CI +9 to +32), for $0.0035 more and 2.3 seconds longer per answer. Rewriting lifted retrieval Hit@5 from 75% to 95%; the stricter prompt lifted "every claim supported by the docs" from 86% to 98%. The full story, including a grader bug found and fixed along the way, is in [the case study](docs/case-study.md).
 
@@ -54,7 +54,12 @@ Only this project's spans are exported to Langfuse. The Anthropic SDK's automati
 
 ## Evals
 
-39 cases: 32 should-answer questions (22 dev and 10 held-out, the held-out set written before any fix), 5 off-topic questions the agent should decline, and 2 prompt-injection cases with a planted malicious chunk. Each variant ran twice per case.
+39 cases: 
+- 32 should-answer questions (22 dev and 10 held-out, the held-out set written before any fix)
+- 5 off-topic questions the agent should decline
+- 2 prompt-injection cases with a planted malicious chunk. 
+
+Each variant ran twice per case.
 
 A should-answer case passes when an expected page is retrieved and cited, and a Claude Sonnet 5.5 judge finds that every claim is supported by the retrieved documents and that the answer addresses the question. Details from the model's own knowledge count as unsupported, even when correct.
 
@@ -79,17 +84,17 @@ The FastAPI docs are public, untrusted input that ends up in Claude's context, s
 - **Pinned source.** The archive is downloaded over HTTPS from a pinned commit, and its SHA-256 must match `sources.lock.json`.
 - **Safe extraction.** `tarfile` with `filter="data"`, a path allowlist, size and file-count caps, and strict UTF-8 decoding. Files are extracted to a temporary folder, and any failure stops ingest.
 - **Sanitizing.** Invisible, bidi, and Unicode tag characters are stripped, as are HTML comments, tags, and dangerous elements. Links outside an allowlist become plain text. Code blocks are left as written.
-- **Injection screening.** Each chunk is checked for instruction-like text on a normalized copy. Matches are quarantined out of the index for manual review (1 chunk, a base64 image).
+- **Injection screening.** Each chunk is checked for instruction-like text on a normalized copy. Matches are quarantined out of the index for manual review (for this source, it was 1 chunk that was a base64 image).
 - **Runtime.** Retrieved text reaches Claude only as document blocks, never in the system prompt. The agent has no tools, citations are validated, and output links are filtered.
 
-The eval's two injection cases plant a malicious chunk at the top of the results; in every run the agent ignored it, and nothing from it reached the answer.
+The eval's two injection cases plant a malicious chunk at the top of the results; in every run the agent ignored it and nothing from it reached the answer.
 
 ## Design decisions
 
 - **Answers: Claude Opus 5.5,** chosen as a strong model for grounded answers, less likely to state things the documents don't support. It costs about $0.033 per answer. Even so, the eval caught it adding unstated details in 6 of v1's 8 imperfect cases; v2's stricter prompt cut that failure from 14% of should-answer questions to 2% ([case study](docs/case-study.md#v2-a-stricter-answer-prompt)). The model is set by the `CLAUDE_MODEL` environment variable, so a cheaper model can be swapped in and measured with the same eval.
 - **Embeddings: OpenAI `text-embedding-3-small`.** Claude has no embedding endpoint, and this model is inexpensive: indexing all 999 chunks cost under a cent.
-- **Search: NumPy, not a vector database.** 999 chunks fit in memory, cosine search is a few readable lines, and there's no extra service to run.
-- **Citations through document blocks.** Each retrieved chunk goes to Claude as a document block with citations enabled, so every claim points to a passage that can be checked, and doc text never enters the system prompt.
+- **Search: NumPy, not a vector database.** 999 chunks fit in memory, cosine search is a few readable lines, and there's no extra service/dependency to run. Every query is compared against all 999 chunks so the true top 5 always come back. A vector database would be appropriate at hundreds of thousands of chunks, with frequent content updates, or with filtering/concurrency needs.
+- **Citations through document blocks.** Each retrieved chunk goes to Claude as a document block with citations enabled, so every claim points to a passage that can be checked and doc text never enters the system prompt.
 - **No tools for the agent.** Injected text in a document has nothing to trigger.
 - **Tracing: Langfuse.** Its hosted free tier needs no setup, it nests steps under one trace with tokens and cost per step, and eval scores attach to the same traces.
 - **Judge: Claude Sonnet 5.5,** at about $0.01 per grade, with structured output so every verdict parses. Before each grading version was used, it was checked on three known-bad answers and rejected all three.
