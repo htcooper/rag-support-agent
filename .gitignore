@@ -21,5 +21,6 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 
-# Working notes (task list, lessons); kept locally, not published
+# Working notes (task list, lessons, Claude notes); kept locally, not published
 tasks/
+CLAUDE.local.md
