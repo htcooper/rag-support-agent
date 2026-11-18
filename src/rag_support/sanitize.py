@@ -117,6 +117,45 @@ def _clean_prose(prose: str, counts: Counter[str]) -> str:
     return "".join(parts)
 
 
+# Sentence punctuation right after a URL is not part of it.
+BARE_URL_RE = re.compile(r"https?://[^\s)\]>\"'`]*[^\s)\]>\"'`.,;:!?]")
+LINK_REMOVED = "[link removed]"
+
+
+def filter_links(text: str) -> tuple[str, int]:
+    """Keep links to allowlisted domains in prose; neutralize all others.
+
+    Used on model output, which may repeat a link from a document or invent one.
+    URLs inside code blocks and inline code are values the reader needs (e.g.
+    ``"http://localhost:3000"`` in a CORS example), not links, so code is left
+    unchanged.
+    """
+    removed = 0
+
+    def link(m: re.Match[str]) -> str:
+        nonlocal removed
+        if is_allowed_url(m.group(2)):
+            return m.group(0)
+        removed += 1
+        return m.group(1)
+
+    def bare(m: re.Match[str]) -> str:
+        nonlocal removed
+        if is_allowed_url(m.group(0)):
+            return m.group(0)
+        removed += 1
+        return LINK_REMOVED
+
+    def prose(segment: str) -> str:
+        parts = INLINE_CODE_RE.split(segment)
+        for i in range(0, len(parts), 2):  # even indexes are prose
+            parts[i] = BARE_URL_RE.sub(bare, LINK_RE.sub(link, parts[i]))
+        return "".join(parts)
+
+    out = [seg if is_code else prose(seg) for is_code, seg in split_fences(text)]
+    return "".join(out), removed
+
+
 def sanitize_markdown(text: str) -> SanitizeResult:
     counts: Counter[str] = Counter()
     text = unicodedata.normalize("NFC", text)

@@ -2,7 +2,36 @@ from __future__ import annotations
 
 import pytest
 
-from rag_support.sanitize import is_allowed_url, sanitize_markdown
+from rag_support.sanitize import (
+    LINK_REMOVED,
+    filter_links,
+    is_allowed_url,
+    sanitize_markdown,
+)
+
+
+def test_filter_links_keeps_allowlisted_and_neutralizes_others() -> None:
+    text = (
+        "[Docs](https://fastapi.tiangolo.com/) https://github.com/fastapi "
+        "[Bad](https://evil.example/x) https://evil.example/y"
+    )
+    out, removed = filter_links(text)
+    assert out == (
+        "[Docs](https://fastapi.tiangolo.com/) https://github.com/fastapi "
+        f"Bad {LINK_REMOVED}"
+    )
+    assert removed == 2
+
+
+def test_filter_links_leaves_urls_in_code_untouched() -> None:
+    text = (
+        'Include `"http://localhost:3000"` in the origins.\n\n'
+        '```python\norigins = ["http://localhost:3000"]\n```\n'
+        "Avoid https://evil.example/x.\n"
+    )
+    out, removed = filter_links(text)
+    assert out == text.replace("https://evil.example/x", LINK_REMOVED)
+    assert removed == 1
 
 
 def test_removes_zero_width_and_bidi_characters() -> None:

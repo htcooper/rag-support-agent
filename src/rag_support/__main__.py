@@ -8,6 +8,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from rag_support.answer import DEFAULT_EFFORT, answer_question
 from rag_support.embeddings import OpenAIEmbedder
 from rag_support.index import build_index
 from rag_support.ingest import pin, run_ingest
@@ -54,6 +55,47 @@ def cmd_search(args: argparse.Namespace) -> None:
         print(f"   {preview}")
 
 
+def cmd_ask(args: argparse.Namespace) -> None:
+    import anthropic
+
+    index = Index.load(DATA_DIR)
+    retriever = Retriever(index, OpenAIEmbedder(model=index.info["model"]))
+    try:
+        answer = answer_question(
+            args.question, retriever, anthropic.Anthropic(), effort=args.effort
+        )
+    except anthropic.AuthenticationError:
+        sys.exit("Anthropic rejected the API key. Check ANTHROPIC_API_KEY in .env.")
+    except anthropic.PermissionDeniedError as e:
+        sys.exit(f"The API key can't use this model or feature: {e.message}")
+    except anthropic.RateLimitError:
+        sys.exit("Rate limited or spend cap reached. Try again later.")
+    except anthropic.APIStatusError as e:
+        sys.exit(f"Anthropic API error {e.status_code}: {e.message}")
+    except anthropic.APIConnectionError:
+        sys.exit("Couldn't reach the Anthropic API. Check the network connection.")
+
+    print(answer.text)
+    print("\nSources:")
+    for rank, hit in enumerate(answer.hits, 1):
+        mark = "cited" if rank in answer.cited_ranks else "     "
+        print(f"  [{rank}] {mark}  {hit.chunk.heading}  {hit.chunk.url}")
+    notes = [f"model: {answer.model}", f"stop: {answer.stop_reason}"]
+    notes.append(
+        f"tokens in/out: {answer.usage.get('input_tokens')}"
+        f"/{answer.usage.get('output_tokens')}"
+    )
+    if not answer.grounded:
+        notes.append("not grounded (no valid citations)")
+    if answer.fallback_used:
+        notes.append("served by fallback model")
+    if answer.invalid_citations:
+        notes.append(f"invalid citations dropped: {answer.invalid_citations}")
+    if answer.links_removed:
+        notes.append(f"links removed: {answer.links_removed}")
+    print("\n" + " | ".join(notes))
+
+
 def main(argv: list[str] | None = None) -> int:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
@@ -79,6 +121,13 @@ def main(argv: list[str] | None = None) -> int:
     p_search.add_argument("query")
     p_search.add_argument("-k", type=int, default=5)
     p_search.set_defaults(func=cmd_search)
+
+    p_ask = sub.add_parser("ask", help="answer a question with cited sources")
+    p_ask.add_argument("question")
+    p_ask.add_argument(
+        "--effort", default=DEFAULT_EFFORT, choices=["low", "medium", "high"]
+    )
+    p_ask.set_defaults(func=cmd_ask)
 
     args = parser.parse_args(argv)
     args.func(args)
