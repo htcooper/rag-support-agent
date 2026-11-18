@@ -56,7 +56,14 @@ def row_cost(r: dict[str, Any]) -> tuple[float, float]:
     if r.get("judge_usage"):
         u = r["judge_usage"]
         judge = cost_details(r["judge_model"], u["input_tokens"], u["output_tokens"])
-    return answer.get("total", 0.0), judge.get("total", 0.0)
+    rewrite: dict[str, float] = {}
+    if r.get("rewrite_usage"):  # part of answering, so counted with the answer
+        u = r["rewrite_usage"]
+        rewrite = cost_details(
+            r["rewrite_model"], u["input_tokens"], u["output_tokens"]
+        )
+    pipeline = answer.get("total", 0.0) + rewrite.get("total", 0.0)
+    return pipeline, judge.get("total", 0.0)
 
 
 def failure_reason(r: dict[str, Any]) -> str:

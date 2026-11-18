@@ -18,6 +18,7 @@ from typing import Any
 
 from rag_support.chunking import Chunk
 from rag_support.retrieve import Hit, SupportsRetrieval
+from rag_support.rewrite import REWRITE_MODEL, Rewrite, rewrite_query, search_text
 from rag_support.sanitize import filter_links
 from rag_support.tracing import NoopTracer, Tracer, cost_details
 
@@ -67,6 +68,7 @@ class Answer:
     links_removed: int = 0
     usage: dict[str, int] = field(default_factory=dict)
     raw_text: str = ""  # the model's text before link filtering
+    rewrite: Rewrite | None = None  # set when the search used a rewritten query
     trace_id: str | None = None
     trace_url: str | None = None
 
@@ -190,16 +192,20 @@ def answer_question(
     tracer: Tracer | None = None,
     public: bool = False,
     trace_metadata: dict[str, Any] | None = None,
+    rewrite: bool = False,
 ) -> Answer:
     """Retrieve, then generate, with the trace shaped like the pipeline.
 
     answer_question
-    |-- retrieve        (embed the question, then vector search)
+    |-- retrieve        (optionally rewrite, embed, then vector search)
+    |   |-- rewrite_query   (only with rewrite=True)
     |   `-- embed_query
     `-- generate        (input is the exact prompt sent to Claude)
 
     Retrieval contains the slow embedding call, so the two top-level steps
-    never start in the same millisecond and always display in order.
+    never start in the same millisecond and always display in order. With
+    rewrite=True, the search uses the question plus a rewrite in the docs'
+    vocabulary; Claude still receives only the user's original question.
     """
     model = model or os.environ.get("CLAUDE_MODEL") or DEFAULT_MODEL
     tracer = tracer or NoopTracer()
@@ -214,14 +220,38 @@ def answer_question(
         with tracer.span(
             "retrieve", as_type="retriever", input={"question": question, "k": k}
         ) as retrieve_span:
+            query = question
+            rewritten: Rewrite | None = None
+            if rewrite:
+                with tracer.span(
+                    "rewrite_query",
+                    as_type="generation",
+                    input=question,
+                    model=REWRITE_MODEL,
+                ) as span:
+                    rewritten = rewrite_query(question, client)
+                    query = search_text(question, rewritten)
+                    span.update(
+                        output=rewritten.text,
+                        usage_details={
+                            "input": rewritten.usage.get("input_tokens", 0),
+                            "output": rewritten.usage.get("output_tokens", 0),
+                        },
+                        cost_details=cost_details(
+                            rewritten.model,
+                            rewritten.usage.get("input_tokens", 0),
+                            rewritten.usage.get("output_tokens", 0),
+                        ),
+                        metadata={"stop_reason": rewritten.stop_reason},
+                    )
             with tracer.span(
                 "embed_query",
                 as_type="embedding",
-                input=question,
+                input=query,
                 model=embedder.model,
             ) as span:
                 before = getattr(embedder, "tokens_used", 0)
-                vector = retriever.embed_query(question)
+                vector = retriever.embed_query(query)
                 tokens = getattr(embedder, "tokens_used", 0) - before
                 span.update(
                     output={"dimensions": int(vector.shape[0])},
@@ -271,6 +301,7 @@ def answer_question(
                 "cited_ranks": answer.cited_ranks,
             }
         )
+        answer.rewrite = rewritten
         if public:
             tracer.make_public()
         answer.trace_id = tracer.trace_id()

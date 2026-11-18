@@ -307,6 +307,46 @@ def grade(
     return scores, explanation
 
 
+@dataclass(frozen=True)
+class RetrievalResult:
+    """One query scored with and without rewriting."""
+
+    id: str
+    group: str  # "dev", "heldout", or a wording level
+    question: str
+    rewrite: str
+    rank_before: int | None
+    rank_after: int | None
+
+    @property
+    def change(self) -> str:
+        before, after = self.rank_before is not None, self.rank_after is not None
+        if before == after:
+            return "same"
+        return "fixed" if after else "broken"
+
+
+def retrieval_summary(results: list[RetrievalResult]) -> dict[str, dict[str, float]]:
+    """Hit@5 and MRR before and after rewriting, per group."""
+    groups: dict[str, list[RetrievalResult]] = {}
+    for r in results:
+        groups.setdefault(r.group, []).append(r)
+
+    def mrr(ranks: list[int | None]) -> float:
+        return sum(1.0 / r for r in ranks if r) / len(ranks)
+
+    return {
+        group: {
+            "n": float(len(rs)),
+            "hits_before": float(sum(r.rank_before is not None for r in rs)),
+            "hits_after": float(sum(r.rank_after is not None for r in rs)),
+            "mrr_before": mrr([r.rank_before for r in rs]),
+            "mrr_after": mrr([r.rank_after for r in rs]),
+        }
+        for group, rs in groups.items()
+    }
+
+
 def wilson_interval(passes: int, n: int, z: float = 1.96) -> tuple[float, float]:
     """95% confidence interval for a pass rate (stays inside 0..1 for small n)."""
     if n == 0:
@@ -333,9 +373,21 @@ def build_trace(case: Case, answer: Answer, k: int) -> list[dict[str, Any]]:
         }
         for i, h in enumerate(answer.hits, 1)
     ]
+    rewrite_turns: list[dict[str, Any]] = []
+    if answer.rewrite is not None:
+        rewrite_turns = [
+            {"role": "tool_call", "name": "rewrite_query", "content": case.question},
+            {
+                "role": "tool_result",
+                "name": "rewrite_query",
+                "content": answer.rewrite.text
+                or "(rewrite failed; searched the question)",
+            },
+        ]
     return [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": case.question},
+        *rewrite_turns,
         {
             "role": "tool_call",
             "name": "retrieve",
@@ -374,6 +426,8 @@ def build_row(
         "usage": answer.usage,
         "judge_model": verdict.model if verdict else None,
         "judge_usage": verdict.usage if verdict else None,
+        "rewrite_model": answer.rewrite.model if answer.rewrite else None,
+        "rewrite_usage": answer.rewrite.usage if answer.rewrite else None,
         "latency_s": round(latency_s, 2),
         "attempts": attempts,
         "meta": {
@@ -381,6 +435,7 @@ def build_row(
             "fallback_used": answer.fallback_used,
             "cited_ranks": answer.cited_ranks,
             "retrieved": [h.chunk.url for h in answer.hits],
+            "rewrite": answer.rewrite.text if answer.rewrite else None,
             "trace_url": answer.trace_url,
         },
     }

@@ -16,17 +16,21 @@ from rag_support.evaluation import (
     JudgeError,
     Planted,
     PlantedRetriever,
+    RetrievalResult,
     Verdict,
     build_judge_request,
     build_row,
+    build_trace,
     first_expected_rank,
     grade,
     load_cases,
     parse_verdict,
     planted_chunk,
+    retrieval_summary,
     wilson_interval,
 )
 from rag_support.retrieve import Hit
+from rag_support.rewrite import Rewrite
 
 ROOT = Path(__file__).resolve().parents[1]
 CORS = DOCS_BASE_URL + "tutorial/cors/"
@@ -264,6 +268,74 @@ def test_parse_verdict_reads_structured_output() -> None:
 def test_parse_verdict_rejects_unusable_output(text: str, stop: str) -> None:
     with pytest.raises(JudgeError):
         parse_verdict(judge_response(text, stop))
+
+
+# --- Rewrite records and retrieval comparison --------------------------------
+
+
+def test_rows_and_traces_record_the_rewrite() -> None:
+    hits = [Hit(chunk("cors", CORS), 0.6)]
+    answer = answer_for(hits, [0])
+    answer.rewrite = Rewrite("CORSMiddleware", "claude-haiku-5-5", {"input_tokens": 9})
+    row = build_row(IN_SCOPE, 0, answer, verdict(), {"pass": 1.0}, {}, 2.0, 1)
+    assert row["rewrite_model"] == "claude-haiku-5-5"
+    assert row["meta"]["rewrite"] == "CORSMiddleware"
+    names = [t.get("name") for t in build_trace(IN_SCOPE, answer, 5)]
+    assert names.index("rewrite_query") < names.index("retrieve")
+
+
+def test_baseline_rows_have_no_rewrite() -> None:
+    row = build_row(
+        IN_SCOPE, 0, answer_for([Hit(chunk("c", CORS), 0.6)], [0]), None, {}, {}, 1, 1
+    )
+    assert row["rewrite_model"] is None and row["meta"]["rewrite"] is None
+
+
+def retrieval(group: str, before: int | None, after: int | None) -> RetrievalResult:
+    return RetrievalResult("id", group, "q", "rw", before, after)
+
+
+def test_retrieval_change_labels() -> None:
+    assert retrieval("dev", None, 2).change == "fixed"
+    assert retrieval("dev", 1, None).change == "broken"
+    assert retrieval("dev", 3, 1).change == "same"  # rank moved; hit unchanged
+
+
+def test_retrieval_summary_counts_hits_and_mrr_per_group() -> None:
+    s = retrieval_summary(
+        [
+            retrieval("dev", None, 1),
+            retrieval("dev", 2, 2),
+            retrieval("vague", None, None),
+        ]
+    )
+    assert s["dev"] == {
+        "n": 2.0,
+        "hits_before": 1.0,
+        "hits_after": 2.0,
+        "mrr_before": pytest.approx(0.25),
+        "mrr_after": pytest.approx(0.75),
+    }
+    assert s["vague"]["hits_after"] == 0.0
+
+
+def test_wording_set_is_five_topics_at_three_levels() -> None:
+    rows = [
+        json.loads(x)
+        for x in (ROOT / "evals" / "wording.jsonl").read_text("utf-8").splitlines()
+        if x
+    ]
+    topics = {r["topic"] for r in rows}
+    assert len(rows) == 15 and len(topics) == 5
+    for topic in topics:
+        levels = sorted(r["level"] for r in rows if r["topic"] == topic)
+        assert levels == ["docs", "user", "vague"]
+    chunks_path = ROOT / "data" / "chunks.jsonl"
+    if chunks_path.exists():
+        urls = {
+            json.loads(x)["url"] for x in chunks_path.read_text("utf-8").splitlines()
+        }
+        assert all(DOCS_BASE_URL + u in urls for r in rows for u in r["expected_urls"])
 
 
 # --- Rows and statistics -------------------------------------------------------

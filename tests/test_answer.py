@@ -162,14 +162,78 @@ class FakeRetriever:
 
 
 class FakeClient:
-    def __init__(self, res: NS) -> None:
+    """Answers through client.beta.messages; rewrites through client.messages."""
+
+    def __init__(self, res: NS, rewrite_text: str = "CORS CORSMiddleware") -> None:
         self.requests: list[dict[str, Any]] = []
+        self.rewrite_requests: list[dict[str, Any]] = []
         self.beta = NS(messages=NS(create=self._create))
+        self.messages = NS(create=self._rewrite)
         self._res = res
+        self._rewrite_text = rewrite_text
 
     def _create(self, **kwargs: Any) -> NS:
         self.requests.append(kwargs)
         return self._res
+
+    def _rewrite(self, **kwargs: Any) -> NS:
+        self.rewrite_requests.append(kwargs)
+        return NS(
+            model="claude-haiku-5-5",
+            stop_reason="end_turn",
+            content=[NS(type="text", text=self._rewrite_text)],
+            usage=NS(input_tokens=100, output_tokens=10),
+        )
+
+
+class RecordingRetriever(FakeRetriever):
+    def __init__(self) -> None:
+        super().__init__()
+        self.queries: list[str] = []
+
+    def embed_query(self, query: str) -> np.ndarray:
+        self.queries.append(query)
+        return super().embed_query(query)
+
+
+def test_rewrite_changes_the_search_but_not_what_claude_is_asked() -> None:
+    tracer = RecordingTracer()
+    retriever = RecordingRetriever()
+    client = FakeClient(response(text_block("A.", cite(0, "CORSMiddleware"))))
+    answer = answer_question(
+        "My React app gets blocked.",
+        retriever,  # type: ignore[arg-type]
+        client,
+        model="claude-opus-5-5",
+        tracer=tracer,
+        rewrite=True,
+    )
+    assert retriever.queries == ["My React app gets blocked.\nCORS CORSMiddleware"]
+    question_block = client.requests[0]["messages"][0]["content"][-1]
+    assert question_block == {"type": "text", "text": "My React app gets blocked."}
+    assert answer.rewrite is not None and answer.rewrite.text == "CORS CORSMiddleware"
+    assert [(s.name, s.parent) for s in tracer.spans] == [
+        ("answer_question", None),
+        ("retrieve", "answer_question"),
+        ("rewrite_query", "retrieve"),
+        ("embed_query", "retrieve"),
+        ("generate", "answer_question"),
+    ]
+    rewrite_span = tracer.by_name("rewrite_query")
+    assert rewrite_span.updates["usage_details"] == {"input": 100, "output": 10}
+    assert rewrite_span.updates["cost_details"]["total"] == pytest.approx(
+        100 * 0.10 / 1e6 + 10 * 0.50 / 1e6
+    )
+
+
+def test_no_rewrite_by_default() -> None:
+    retriever = RecordingRetriever()
+    client = FakeClient(response(text_block("A.", cite(0, "CORSMiddleware"))))
+    answer = answer_question(
+        "cors?", retriever, client, model="claude-opus-5-5"  # type: ignore[arg-type]
+    )
+    assert retriever.queries == ["cors?"] and client.rewrite_requests == []
+    assert answer.rewrite is None
 
 
 def test_answer_question_uses_env_model_and_k(monkeypatch: pytest.MonkeyPatch) -> None:

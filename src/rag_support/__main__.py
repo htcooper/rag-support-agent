@@ -72,6 +72,7 @@ def cmd_ask(args: argparse.Namespace) -> None:
             effort=args.effort,
             tracer=tracer,
             public=args.public,
+            rewrite=args.rewrite,
         )
     except anthropic.AuthenticationError:
         sys.exit("Anthropic rejected the API key. Check ANTHROPIC_API_KEY in .env.")
@@ -91,6 +92,8 @@ def cmd_ask(args: argparse.Namespace) -> None:
     for rank, hit in enumerate(answer.hits, 1):
         mark = "cited" if rank in answer.cited_ranks else "     "
         print(f"  [{rank}] {mark}  {hit.chunk.heading}  {hit.chunk.url}")
+    if answer.rewrite is not None:
+        print(f"\nSearched for: {answer.rewrite.text or '(rewrite failed)'}")
     notes = [f"model: {answer.model}", f"stop: {answer.stop_reason}"]
     notes.append(
         f"tokens in/out: {answer.usage.get('input_tokens')}"
@@ -143,6 +146,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_ask.add_argument(
         "--public", action="store_true", help="make the trace viewable by link"
+    )
+    p_ask.add_argument(
+        "--rewrite",
+        action="store_true",
+        help="restate the question in the docs' vocabulary before searching",
     )
     p_ask.set_defaults(func=cmd_ask)
 

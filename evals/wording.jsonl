@@ -1,0 +1,15 @@
+{"id": "cors-docs", "topic": "cors", "level": "docs", "question": "How do I configure CORSMiddleware with allowed origins?", "expected_urls": ["tutorial/cors/"]}
+{"id": "cors-user", "topic": "cors", "level": "user", "question": "My React app on another port can't call my API. How do I allow it?", "expected_urls": ["tutorial/cors/"]}
+{"id": "cors-vague", "topic": "cors", "level": "vague", "question": "My frontend can't talk to my backend.", "expected_urls": ["tutorial/cors/"]}
+{"id": "bg-docs", "topic": "background-tasks", "level": "docs", "question": "How do I use BackgroundTasks in a path operation?", "expected_urls": ["tutorial/background-tasks/"]}
+{"id": "bg-user", "topic": "background-tasks", "level": "user", "question": "How do I send an email after returning the response?", "expected_urls": ["tutorial/background-tasks/"]}
+{"id": "bg-vague", "topic": "background-tasks", "level": "vague", "question": "How do I do something later without making the user wait?", "expected_urls": ["tutorial/background-tasks/"]}
+{"id": "hide-docs", "topic": "hide-fields", "level": "docs", "question": "How do I use response_model to exclude a field from the output?", "expected_urls": ["tutorial/response-model/"]}
+{"id": "hide-user", "topic": "hide-fields", "level": "user", "question": "How do I keep the password field out of my API responses?", "expected_urls": ["tutorial/response-model/"]}
+{"id": "hide-vague", "topic": "hide-fields", "level": "vague", "question": "My API shows data it shouldn't.", "expected_urls": ["tutorial/response-model/"]}
+{"id": "db-docs", "topic": "db-cleanup", "level": "docs", "question": "How do I write a dependency with yield to close a database session?", "expected_urls": ["tutorial/dependencies/dependencies-with-yield/"]}
+{"id": "db-user", "topic": "db-cleanup", "level": "user", "question": "How do I make sure my database connection closes after each request?", "expected_urls": ["tutorial/dependencies/dependencies-with-yield/"]}
+{"id": "db-vague", "topic": "db-cleanup", "level": "vague", "question": "How do I clean up after a request?", "expected_urls": ["tutorial/dependencies/dependencies-with-yield/"]}
+{"id": "upload-docs", "topic": "file-upload", "level": "docs", "question": "How do I use UploadFile to receive a file?", "expected_urls": ["tutorial/request-files/"]}
+{"id": "upload-user", "topic": "file-upload", "level": "user", "question": "How do I let users upload a picture?", "expected_urls": ["tutorial/request-files/"]}
+{"id": "upload-vague", "topic": "file-upload", "level": "vague", "question": "How do I accept attachments?", "expected_urls": ["tutorial/request-files/"]}

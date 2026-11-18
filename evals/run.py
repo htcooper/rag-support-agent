@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures as cf
-import hashlib
 import json
 import random
 import re
@@ -43,28 +42,16 @@ from rag_support.evaluation import (
     planted_chunk,
     wilson_interval,
 )
+from rag_support.harness import FLOW_DIR, HARNESS_PATHS, check_harness
 from rag_support.retrieve import Index, Retriever
+from rag_support.rewrite import REWRITE_MODEL
 from rag_support.tracing import Tracer, make_tracer
 
-FLOW_DIR = Path(".claude/hillclimb/support-answer")
 CASES_PATH = Path("evals/cases.jsonl")
 DATA_DIR = Path("data")
 STATE_PATH = FLOW_DIR / "_state.json"
-APPROVAL_PATH = FLOW_DIR / "harness_approval.json"
 MAX_ATTEMPTS = 4
 K = 5
-
-# Files whose contents define what the eval measures. A change to any of them
-# needs a fresh --approve-harness, so scores before and after aren't mixed.
-HARNESS_PATHS = [
-    "evals/run.py",
-    "evals/cases.jsonl",
-    "src/rag_support/evaluation.py",
-    "src/rag_support/answer.py",
-    "src/rag_support/retrieve.py",
-    "src/rag_support/sanitize.py",
-    "data/index_info.json",
-]
 
 STATE = {
     "metrics": METRICS,
@@ -80,34 +67,6 @@ STATE = {
 
 class FatalError(Exception):
     """Stop the whole run (bad key, spend cap, malformed request)."""
-
-
-def harness_sha() -> str:
-    digest = hashlib.sha256()
-    for rel in HARNESS_PATHS:
-        digest.update(rel.encode() + b"\0" + Path(rel).read_bytes() + b"\0")
-    return digest.hexdigest()
-
-
-def check_harness(approve: bool) -> None:
-    sha = harness_sha()
-    if approve:
-        FLOW_DIR.mkdir(parents=True, exist_ok=True)
-        APPROVAL_PATH.write_text(
-            json.dumps({"sha256": sha}) + "\n", encoding="utf-8", newline="\n"
-        )
-        print(f"Harness approved: {sha[:16]}. Run again without --approve-harness.")
-        sys.exit(0)
-    approved = None
-    if APPROVAL_PATH.exists():
-        approved = json.loads(APPROVAL_PATH.read_text(encoding="utf-8"))["sha256"]
-    if approved != sha:
-        print(
-            "The eval code changed since it was last approved (or was never\n"
-            "approved). Review the change, then run once with --approve-harness.",
-            file=sys.stderr,
-        )
-        sys.exit(2)
 
 
 def is_retryable(exc: Exception) -> bool:
@@ -223,6 +182,7 @@ def run_case(
                 k=K,
                 tracer=tracer,
                 trace_metadata={"eval_case": case.id, "eval_variant": args.variant},
+                rewrite=args.rewrite,
             )
         )
         latency = time.monotonic() - t0
@@ -243,6 +203,12 @@ def run_case(
             f"asked {args.model}, served {answer.model}",
             **usage,
         )
+        return
+    if args.rewrite and (
+        answer.rewrite is None or answer.rewrite.model != REWRITE_MODEL
+    ):
+        served = answer.rewrite.model if answer.rewrite else None
+        recorder.error(case, rep, "model_mismatch", f"rewrite served {served}", **usage)
         return
 
     verdict = None
@@ -307,18 +273,22 @@ def main() -> int:
     parser.add_argument("--timeout-s", type=float, default=300.0)
     parser.add_argument("--concurrency", type=int, default=4)
     parser.add_argument("--only", help="comma-separated case ids (for a pilot)")
+    parser.add_argument(
+        "--rewrite", action="store_true", help="rewrite queries before searching"
+    )
     parser.add_argument("--approve-harness", action="store_true")
     args = parser.parse_args()
     if not re.fullmatch(r"baseline|v\d+", args.variant):
         parser.error("--variant must be 'baseline' or v<N> (the report ignores others)")
+    if args.rewrite and args.variant == "baseline":
+        parser.error("the baseline runs without --rewrite; use --variant v1")
 
     load_dotenv(Path(".env"))
     check_harness(args.approve_harness)
     FLOW_DIR.mkdir(parents=True, exist_ok=True)
-    if not STATE_PATH.exists():
-        STATE_PATH.write_text(
-            json.dumps(STATE, indent=2) + "\n", encoding="utf-8", newline="\n"
-        )
+    STATE_PATH.write_text(
+        json.dumps(STATE, indent=2) + "\n", encoding="utf-8", newline="\n"
+    )
 
     cases = load_cases(CASES_PATH)
     if args.only:
