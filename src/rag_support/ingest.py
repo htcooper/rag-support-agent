@@ -13,7 +13,7 @@ import tempfile
 from collections import Counter
 from collections.abc import Iterable
 from dataclasses import asdict
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 from rag_support.chunking import Chunk, chunk_markdown
@@ -33,6 +33,17 @@ from rag_support.sources import (
 
 # Sanitizer findings worth a per-file entry in the report.
 NOTABLE_FINDINGS = frozenset({"invisible_chars", "dangerous_elements"})
+DOCS_ROOT = "docs/en/docs/"
+
+
+def is_internal_page(rel: str) -> bool:
+    """Doc pages under a ``_``-prefixed name are tooling, not user docs.
+
+    e.g. ``docs/en/docs/_llm-test.md``, a test file for FastAPI's translation
+    tooling. Applies to doc pages only: code examples include ``__init__.py``.
+    """
+    parts = PurePosixPath(rel.removeprefix(DOCS_ROOT)).parts
+    return any(part.startswith("_") for part in parts)
 
 
 def _archive_path(source: Source, data_dir: Path) -> Path:
@@ -120,7 +131,9 @@ def ingest_archive(
     includes_unresolved: list[dict[str, str]] = []
 
     code_files = {k: v for k, v in texts.items() if k.startswith(CODE_ROOT)}
-    docs = {k: v for k, v in texts.items() if not k.startswith(CODE_ROOT)}
+    all_docs = {k: v for k, v in texts.items() if not k.startswith(CODE_ROOT)}
+    internal = sorted(k for k in all_docs if is_internal_page(k))
+    docs = {k: v for k, v in all_docs.items() if k not in internal}
 
     for rel, raw_text in docs.items():
         expanded = expand_includes(raw_text, code_files)
@@ -149,6 +162,7 @@ def ingest_archive(
         "archive_hash_verified": True,
         "files_extracted": len(texts) + len(rejected),
         "doc_files": len(docs),
+        "internal_pages_skipped": internal,
         "code_files": len(code_files),
         "files_rejected": rejected,
         "includes_resolved": includes_resolved,

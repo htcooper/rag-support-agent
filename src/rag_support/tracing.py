@@ -46,7 +46,13 @@ class Tracer(Protocol):
 
     def make_public(self) -> None: ...
 
+    def trace_id(self) -> str | None: ...
+
     def trace_url(self) -> str | None: ...
+
+    def score(
+        self, trace_id: str, name: str, value: float, comment: str | None = None
+    ) -> None: ...
 
     def flush(self) -> None: ...
 
@@ -66,8 +72,16 @@ class NoopTracer:
     def make_public(self) -> None:
         pass
 
+    def trace_id(self) -> str | None:
+        return None
+
     def trace_url(self) -> str | None:
         return None
+
+    def score(
+        self, trace_id: str, name: str, value: float, comment: str | None = None
+    ) -> None:
+        pass
 
     def flush(self) -> None:
         pass
@@ -96,9 +110,21 @@ class LangfuseTracer:
         """Make the current trace viewable by anyone with its link."""
         self._lf.set_current_trace_as_public()
 
-    def trace_url(self) -> str | None:
+    def trace_id(self) -> str | None:
         trace_id = self._lf.get_current_trace_id()
+        return str(trace_id) if trace_id else None
+
+    def trace_url(self) -> str | None:
+        trace_id = self.trace_id()
         return str(self._lf.get_trace_url(trace_id=trace_id)) if trace_id else None
+
+    def score(
+        self, trace_id: str, name: str, value: float, comment: str | None = None
+    ) -> None:
+        """Attach an eval score to a trace (shown in the trace's Scores tab)."""
+        self._lf.create_score(
+            trace_id=trace_id, name=name, value=value, comment=comment
+        )
 
     def flush(self) -> None:
         self._lf.flush()

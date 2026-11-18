@@ -26,6 +26,7 @@ class RecordingTracer:
         self.spans: list[RecordedSpan] = []
         self.public = False
         self.flushed = False
+        self.scores: list[tuple[str, str, float, str | None]] = []
         self._stack: list[str] = []
 
     @contextmanager
@@ -45,8 +46,16 @@ class RecordingTracer:
     def make_public(self) -> None:
         self.public = True
 
+    def trace_id(self) -> str | None:
+        return "trace-1"
+
     def trace_url(self) -> str | None:
         return "https://langfuse.example/trace/1"
+
+    def score(
+        self, trace_id: str, name: str, value: float, comment: str | None = None
+    ) -> None:
+        self.scores.append((trace_id, name, value, comment))
 
     def flush(self) -> None:
         self.flushed = True

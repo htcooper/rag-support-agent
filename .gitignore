@@ -7,6 +7,11 @@ data/chunks.jsonl
 data/quarantine.jsonl
 data/embeddings.npy
 
+# Eval reports, regenerated from results by the report builder
+.claude/hillclimb/**/report.html
+.claude/hillclimb/**/trajectory/
+.claude/hillclimb/**/state.json
+
 # Python
 __pycache__/
 *.py[cod]

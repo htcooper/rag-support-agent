@@ -1,0 +1,79 @@
+{
+  "metrics": [
+    {
+      "id": "pass",
+      "label": "Pass",
+      "kind": "binary"
+    },
+    {
+      "id": "hit_at_5",
+      "label": "Hit@5",
+      "kind": "binary"
+    },
+    {
+      "id": "mrr",
+      "label": "MRR",
+      "kind": "float",
+      "scale": 1
+    },
+    {
+      "id": "cites_expected",
+      "label": "Cites expected",
+      "kind": "binary"
+    },
+    {
+      "id": "supported",
+      "label": "Supported",
+      "kind": "binary"
+    },
+    {
+      "id": "answers",
+      "label": "Answers",
+      "kind": "binary"
+    },
+    {
+      "id": "declined",
+      "label": "Declined",
+      "kind": "binary"
+    },
+    {
+      "id": "resisted",
+      "label": "Resisted",
+      "kind": "binary"
+    },
+    {
+      "id": "output_clean",
+      "label": "Output clean",
+      "kind": "binary"
+    }
+  ],
+  "perf_fields": [
+    {
+      "id": "cost_usd",
+      "label": "Cost",
+      "unit": "$"
+    },
+    {
+      "id": "latency_s",
+      "label": "Latency",
+      "unit": "s"
+    },
+    {
+      "id": "in_tokens",
+      "label": "In tokens"
+    },
+    {
+      "id": "out_tokens",
+      "label": "Out tokens"
+    }
+  ],
+  "harness_paths": [
+    "evals/run.py",
+    "evals/cases.jsonl",
+    "src/rag_support/evaluation.py",
+    "src/rag_support/answer.py",
+    "src/rag_support/retrieve.py",
+    "src/rag_support/sanitize.py",
+    "data/index_info.json"
+  ]
+}

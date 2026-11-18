@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from rag_support.chunking import Chunk
-from rag_support.retrieve import Hit, Retriever
+from rag_support.retrieve import Hit, SupportsRetrieval
 from rag_support.sanitize import filter_links
 from rag_support.tracing import NoopTracer, Tracer, cost_details
 
@@ -66,6 +66,8 @@ class Answer:
     invalid_citations: int = 0
     links_removed: int = 0
     usage: dict[str, int] = field(default_factory=dict)
+    raw_text: str = ""  # the model's text before link filtering
+    trace_id: str | None = None
     trace_url: str | None = None
 
     @property
@@ -162,6 +164,7 @@ def parse_response(question: str, hits: list[Hit], response: Any) -> Answer:
     text = "".join(parts).strip()
     if answer.stop_reason == "max_tokens":
         text += TRUNCATED_NOTE
+    answer.raw_text = text
     answer.text, answer.links_removed = filter_links(text)
     return answer
 
@@ -179,13 +182,14 @@ def _hit_summary(rank: int, hit: Hit) -> dict[str, Any]:
 
 def answer_question(
     question: str,
-    retriever: Retriever,
+    retriever: SupportsRetrieval,
     client: Any,
     model: str | None = None,
     effort: str = DEFAULT_EFFORT,
     k: int = 5,
     tracer: Tracer | None = None,
     public: bool = False,
+    trace_metadata: dict[str, Any] | None = None,
 ) -> Answer:
     """Retrieve, then generate, with the trace shaped like the pipeline.
 
@@ -205,7 +209,7 @@ def answer_question(
         "answer_question",
         as_type="chain",
         input={"question": question},
-        metadata={"model": model, "effort": effort, "k": k},
+        metadata={"model": model, "effort": effort, "k": k, **(trace_metadata or {})},
     ) as root:
         with tracer.span(
             "retrieve", as_type="retriever", input={"question": question, "k": k}
@@ -269,5 +273,6 @@ def answer_question(
         )
         if public:
             tracer.make_public()
+        answer.trace_id = tracer.trace_id()
         answer.trace_url = tracer.trace_url()
     return answer

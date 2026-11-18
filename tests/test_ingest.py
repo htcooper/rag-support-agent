@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-from rag_support.ingest import fetch_verified, ingest_archive
+from rag_support.ingest import fetch_verified, ingest_archive, is_internal_page
 from rag_support.sources import IntegrityError, Source, sha256_file
 from tests.conftest import ROOT, ArchiveFactory
 
@@ -57,6 +57,40 @@ def archive(make_archive: ArchiveFactory) -> Path:
             ),
         ]
     )
+
+
+@pytest.mark.parametrize(
+    ("rel", "internal"),
+    [
+        ("docs/en/docs/_llm-test.md", True),
+        ("docs/en/docs/_internal/notes.md", True),
+        ("docs/en/docs/tutorial/first-steps.md", False),
+        ("docs/en/docs/tutorial/my_page.md", False),
+    ],
+)
+def test_is_internal_page(rel: str, internal: bool) -> None:
+    assert is_internal_page(rel) is internal
+
+
+def test_internal_pages_are_skipped_but_init_files_still_inline(
+    make_archive: ArchiveFactory, tmp_path: Path
+) -> None:
+    archive = make_archive(
+        [
+            (f"{DOC}/_llm-test.md", b"# LLM test\n\nTranslate this page.\n"),
+            (f"{DOC}/bigger.md", b"# Bigger\n\n{* ../../docs_src/app/__init__.py *}\n"),
+            (f"{ROOT}/docs_src/app/__init__.py", b"VERSION = 1\n"),
+        ]
+    )
+    data = tmp_path / "data"
+    data.mkdir()
+    report = ingest_archive(archive, source(), data, allowlist={})
+
+    assert report["internal_pages_skipped"] == ["docs/en/docs/_llm-test.md"]
+    assert report["doc_files"] == 1 and report["includes_resolved"] == 1
+    indexed = read_jsonl(data / "chunks.jsonl")
+    assert [c["source_path"] for c in indexed] == ["docs/en/docs/bigger.md"]
+    assert "VERSION = 1" in indexed[0]["text"]
 
 
 def test_ingest_end_to_end(archive: Path, tmp_path: Path) -> None:

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 import numpy as np
 
@@ -23,6 +23,16 @@ class StaleIndexError(Exception):
 class Hit:
     chunk: Chunk
     score: float
+
+
+class SupportsRetrieval(Protocol):
+    """What answer_question needs from a retriever (the eval wraps one)."""
+
+    embedder: Embedder
+
+    def embed_query(self, query: str) -> Vectors: ...
+
+    def search(self, query_vector: Vectors, k: int = 5) -> list[Hit]: ...
 
 
 class Index:

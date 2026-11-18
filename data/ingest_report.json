@@ -8,7 +8,10 @@
   },
   "archive_hash_verified": true,
   "files_extracted": 641,
-  "doc_files": 156,
+  "doc_files": 155,
+  "internal_pages_skipped": [
+    "docs/en/docs/_llm-test.md"
+  ],
   "code_files": 485,
   "files_rejected": [],
   "includes_resolved": 452,
@@ -21,10 +24,10 @@
   "sanitizer_totals": {
     "dangerous_elements": 2,
     "html_comments": 8,
-    "html_tags": 878,
+    "html_tags": 858,
     "images": 15,
     "invisible_chars": 12,
-    "links_removed": 293
+    "links_removed": 291
   },
   "files_with_notable_findings": {
     "docs/en/docs/async.md": {
@@ -40,7 +43,7 @@
       "invisible_chars": 4
     }
   },
-  "chunks_indexed": 1006,
+  "chunks_indexed": 999,
   "chunks_quarantined": 1,
   "quarantined": [
     {
