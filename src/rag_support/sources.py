@@ -57,7 +57,9 @@ def load_lock(path: Path) -> Source:
 
 
 def save_lock(path: Path, source: Source) -> None:
-    path.write_text(json.dumps(asdict(source), indent=2) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(asdict(source), indent=2) + "\n", encoding="utf-8", newline="\n"
+    )
 
 
 def _check_url(url: str) -> None:

@@ -25,10 +25,13 @@ where = ["src"]
 
 [tool.black]
 line-length = 88
+# Downloaded material is data, never code for our tools to parse.
+extend-exclude = "^/data/"
 
 [tool.ruff]
 line-length = 88
 target-version = "py312"
+extend-exclude = ["data"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "S"]

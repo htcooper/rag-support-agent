@@ -9,7 +9,7 @@ Outputs in ``data/``:
 from __future__ import annotations
 
 import json
-import shutil
+import tempfile
 from collections import Counter
 from collections.abc import Iterable
 from dataclasses import asdict
@@ -76,9 +76,30 @@ def load_allowlist(path: Path) -> dict[str, str]:
 
 
 def _write_jsonl(path: Path, rows: Iterable[dict[str, Any]]) -> None:
-    with path.open("w", encoding="utf-8") as f:
+    with path.open("w", encoding="utf-8", newline="\n") as f:
         for row in rows:
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+
+def read_archive(
+    archive: Path, limits: ExtractLimits | None = None
+) -> tuple[dict[str, str], list[dict[str, str]]]:
+    """Safely extract the allowlisted files and return their text.
+
+    Extraction happens in a temporary folder that is deleted on return, so no
+    untrusted files stay on disk and none land in a synced folder (OneDrive
+    marks synced folders read-only, which breaks later cleanup).
+    """
+    texts: dict[str, str] = {}
+    rejected: list[dict[str, str]] = []
+    with tempfile.TemporaryDirectory(prefix="rag-ingest-") as tmp:
+        files = safe_extract(archive, Path(tmp) / "raw", limits=limits)
+        for rel, path in sorted(files.items()):
+            try:
+                texts[rel] = path.read_bytes().decode("utf-8")
+            except UnicodeDecodeError:
+                rejected.append({"source_path": rel, "reason": "invalid UTF-8"})
+    return texts, rejected
 
 
 def ingest_archive(
@@ -88,26 +109,16 @@ def ingest_archive(
     allowlist: dict[str, str],
     limits: ExtractLimits | None = None,
 ) -> dict[str, Any]:
-    raw = data_dir / "raw"
-    if raw.exists():
-        shutil.rmtree(raw)
-    files = safe_extract(archive, raw, limits=limits)
+    texts, rejected = read_archive(archive, limits)
 
     totals: Counter[str] = Counter()
     notable: dict[str, dict[str, int]] = {}
-    rejected: list[dict[str, str]] = []
     indexed: list[Chunk] = []
     quarantined: list[dict[str, Any]] = []
     cleared_by_review: list[str] = []
     includes_resolved = 0
     includes_unresolved: list[dict[str, str]] = []
 
-    texts: dict[str, str] = {}
-    for rel, path in sorted(files.items()):
-        try:
-            texts[rel] = path.read_bytes().decode("utf-8")
-        except UnicodeDecodeError:
-            rejected.append({"source_path": rel, "reason": "invalid UTF-8"})
     code_files = {k: v for k, v in texts.items() if k.startswith(CODE_ROOT)}
     docs = {k: v for k, v in texts.items() if not k.startswith(CODE_ROOT)}
 
@@ -136,7 +147,7 @@ def ingest_archive(
     report: dict[str, Any] = {
         "source": asdict(source),
         "archive_hash_verified": True,
-        "files_extracted": len(files),
+        "files_extracted": len(texts) + len(rejected),
         "doc_files": len(docs),
         "code_files": len(code_files),
         "files_rejected": rejected,
@@ -158,7 +169,7 @@ def ingest_archive(
         "cleared_by_review": cleared_by_review,
     }
     (data_dir / "ingest_report.json").write_text(
-        json.dumps(report, indent=2) + "\n", encoding="utf-8"
+        json.dumps(report, indent=2) + "\n", encoding="utf-8", newline="\n"
     )
     return report
 

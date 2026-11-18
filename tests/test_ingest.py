@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -122,6 +123,25 @@ def test_report_contains_no_local_paths_or_secrets(
         if re.search(pattern, text)
     }
     assert leaks == {}
+
+
+def test_ingest_leaves_no_extracted_files_behind(
+    archive: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(scratch))
+    data = tmp_path / "data"
+    data.mkdir()
+    report = ingest_archive(archive, source(), data, allowlist={})
+
+    assert report["files_extracted"] == 8
+    assert list(scratch.iterdir()) == []
+    assert sorted(p.name for p in data.iterdir()) == [
+        "chunks.jsonl",
+        "ingest_report.json",
+        "quarantine.jsonl",
+    ]
 
 
 def test_reviewed_chunk_can_be_allowlisted(archive: Path, tmp_path: Path) -> None:

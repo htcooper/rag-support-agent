@@ -2,12 +2,10 @@
 .env
 
 # Downloaded, untrusted source material and generated data
-data/raw/
 data/*.tar.gz
 data/chunks.jsonl
 data/quarantine.jsonl
 data/embeddings.npy
-data/meta.jsonl
 
 # Python
 __pycache__/

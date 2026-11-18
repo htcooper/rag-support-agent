@@ -1,0 +1,7 @@
+{
+  "model": "text-embedding-3-small",
+  "dimensions": 1536,
+  "count": 1006,
+  "chunks_sha256": "e77f20ec6596a08bbfcaf79d3cd0bec3684e01e23864ed6b0216c2d45002b01c",
+  "tokens_used": 465109
+}
