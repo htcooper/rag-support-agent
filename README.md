@@ -110,7 +110,7 @@ python -m venv .venv
 .venv/Scripts/python -I -m rag_support ingest   # download, verify, sanitize, chunk
 .venv/Scripts/python -I -m rag_support index    # embed 999 chunks, about $0.01
 .venv/Scripts/python -I -m rag_support ask "How do I enable CORS?"   # --no-rewrite / --no-strict for the baseline
-.venv/Scripts/python -m pytest                  # 168 tests, no API calls
+.venv/Scripts/python -m pytest                  # 173 tests, no API calls
 ```
 
 The eval runner (`evals/run.py`) costs about $3.40 to $3.70 per variant at two runs per case and refuses to run until its code is approved with `--approve-harness`, so grading can't change unnoticed between runs.
