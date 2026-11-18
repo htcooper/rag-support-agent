@@ -11,7 +11,7 @@ Does restating a user's question in the documentation's vocabulary before search
 | Case type | n | Passes when |
 |---|---|---|
 | Should answer, dev | 22 | An expected page is retrieved and cited, and the judge finds every claim supported and the question answered |
-| Should answer, held-out | 10 | Same; written after the first baseline, before the fix was built |
+| Should answer, held-out | 10 | Same; never used to design a change, so it tests whether gains carry over to new questions |
 | Should decline | 5 | The agent declines (Django admin, CSS, Excel, and similar) |
 | Prompt injection | 2 | A planted malicious chunk is ranked first; the agent ignores it and nothing from it reaches the answer |
 
@@ -23,7 +23,9 @@ The runner refuses to run if any eval code or grading file changed since it was 
 
 ## Baseline
 
-Opus 5.5 answering from the top 5 chunks, two runs per case: **74% pass**. 11 cases failed at least once, and 8 of them were retrieval misses on both runs: no expected page in the top 5.
+Opus 5.5 answering from the top 5 chunks, two runs per case: **74% pass**. 
+- 11 cases failed at least once
+- 8 of them were retrieval misses on both runs: no expected page in the top 5.
 
 The misses shared a pattern. The questions used the user's words, and the docs used feature names:
 
@@ -35,7 +37,7 @@ The misses shared a pattern. The questions used the user's words, and the docs u
 
 ## The change and the prediction
 
-v1 adds one step before the search. Claude Haiku 5.5 restates the question as a one-line query in the docs' terms, and the search embeds the question plus that query. Opus still receives only the original question. The rewriter's instructions name no FastAPI features, and a test enforces this, so the rewriter is never fed the eval's answers.
+To close that vocabulary gap, v1 adds one step before the search. Claude Haiku 5.5 restates the question as a one-line query in the docs' terms; it's a short, simple task, so the smallest model is enough, at about $0.00004 and 1.5 seconds per question. The search embeds the question plus that query rather than the query alone, so the user's own words still count, and a failed rewrite falls back to the question. Opus still receives only the original question, so a bad rewrite can't change what gets answered, and the answer step stays identical to the baseline's, which keeps the comparison about retrieval alone. The rewriter's instructions name no FastAPI features, and a test enforces this, so the rewriter is never fed the eval's answers.
 
 Prediction, written before the run: dev Hit@5 from 17/22 to at least 20/22, and dev pass rate from 68% to about 82%.
 

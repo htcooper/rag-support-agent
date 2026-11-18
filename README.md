@@ -83,6 +83,17 @@ The FastAPI docs are public, untrusted input that ends up in Claude's context, s
 
 The eval's two injection cases plant a malicious chunk at the top of the results; in every run the agent ignored it, and nothing from it reached the answer.
 
+## Design decisions
+
+- **Answers: Claude Opus 5.5,** chosen as a strong model for grounded answers, less likely to state things the documents don't support. It costs about $0.033 per answer. Even so, the eval catches it adding unstated details in some answers, which is the main remaining failure ([case study](docs/case-study.md#whats-left)). The model is set by the `CLAUDE_MODEL` environment variable, so a cheaper model can be swapped in and measured with the same eval.
+- **Embeddings: OpenAI `text-embedding-3-small`.** Claude has no embedding endpoint, and this model is inexpensive: indexing all 999 chunks cost under a cent.
+- **Search: NumPy, not a vector database.** 999 chunks fit in memory, cosine search is a few readable lines, and there's no extra service to run.
+- **Citations through document blocks.** Each retrieved chunk goes to Claude as a document block with citations enabled, so every claim points to a passage that can be checked, and doc text never enters the system prompt.
+- **No tools for the agent.** Injected text in a document has nothing to trigger.
+- **Tracing: Langfuse.** Its hosted free tier needs no setup, it nests steps under one trace with tokens and cost per step, and eval scores attach to the same traces.
+- **Judge: Claude Sonnet 5.5,** at about $0.01 per grade, with structured output so every verdict parses. Before each grading version was used, it was checked on three known-bad answers and rejected all three.
+- **Two runs per case.** One run can't separate a real change from run-to-run variation; two runs measured that variation (2 to 6 of 39 cases flipped between identical runs).
+
 ## Run it
 
 Requires Python 3.12+, plus Anthropic, OpenAI, and Langfuse keys in `.env` (see `.env.example`).
