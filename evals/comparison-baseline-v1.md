@@ -1,6 +1,6 @@
 # Before and after: `baseline` vs `v1`
 
-`v1` adds query rewriting: Claude Haiku 5.5 restates each question in FastAPI's vocabulary before the search. Everything else is the same. 39 cases, 2 runs each per variant. Pass rates average each case's runs; ranges are 95% confidence intervals over cases.
+`v1`: Before searching, Claude Haiku 5.5 restates the question in FastAPI's vocabulary, and the search uses the question plus the rewrite. Claude Opus 5.5 still receives only the original question, and the rewriter's instructions name no FastAPI features. 39 cases, 2 runs each per variant. Pass rates average each case's runs; ranges are 95% confidence intervals over cases.
 
 | Cases | n | Pass before | Pass after | Change (paired) |
 |---|---|---|---|---|

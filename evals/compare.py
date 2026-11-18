@@ -1,4 +1,4 @@
-"""Write evals/comparison.md: baseline vs v1, case by case.
+"""Write evals/comparison-<before>-<after>.md: two variants, case by case.
 
 Run with python -I evals/compare.py [before] [after] from the project root
 (defaults: baseline v1). Every number is recomputed from the two variants'
@@ -18,12 +18,21 @@ from rag_support.evaluation import mean_ci, per_case_means
 from rag_support.harness import FLOW_DIR
 from rag_support.tracing import cost_details
 
-OUT = Path("evals/comparison.md")
+OUT_DIR = Path("evals")
 
 
 def load(variant: str) -> list[dict[str, Any]]:
     path = FLOW_DIR / variant / "results.jsonl"
     return [json.loads(x) for x in path.read_text(encoding="utf-8").splitlines() if x]
+
+
+def change_summary(variant: str) -> str:
+    """The first paragraph of the variant's change.md (what changed)."""
+    path = FLOW_DIR / variant / "change.md"
+    if not path.exists():
+        return "see its change note."
+    paragraphs = path.read_text(encoding="utf-8").split("\n\n")
+    return next((p.strip() for p in paragraphs if not p.startswith("#")), "")
 
 
 def group_of(row: dict[str, Any]) -> str:
@@ -87,8 +96,7 @@ def compare(before: str, after: str) -> str:
     lines = [
         f"# Before and after: `{before}` vs `{after}`",
         "",
-        f"`{after}` adds query rewriting: Claude Haiku 5.5 restates each question "
-        "in FastAPI's vocabulary before the search. Everything else is the same. "
+        f"`{after}`: {change_summary(after)} "
         f"{len(cases)} cases, {reps} runs each per variant. Pass rates average each "
         "case's runs; ranges are 95% confidence intervals over cases.",
         "",
@@ -160,7 +168,8 @@ def main() -> int:
     before = sys.argv[1] if len(sys.argv) > 1 else "baseline"
     after = sys.argv[2] if len(sys.argv) > 2 else "v1"
     text = compare(before, after)
-    OUT.write_text(text, encoding="utf-8", newline="\n")
+    out = OUT_DIR / f"comparison-{before}-{after}.md"
+    out.write_text(text, encoding="utf-8", newline="\n")
     print(text)
     return 0
 
