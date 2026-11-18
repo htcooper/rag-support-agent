@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -92,6 +93,35 @@ def test_ingest_end_to_end(archive: Path, tmp_path: Path) -> None:
         "docs/en/docs/tutorial.md": {"invisible_chars": 1},
     }
     assert json.loads((data / "ingest_report.json").read_text()) == report
+
+
+SENTINEL_KEY = "sk-test-sentinel-0000000000000000"
+LEAK_PATTERNS = {
+    "windows absolute path": r"[A-Za-z]:[\\/]",
+    "unix home or temp path": r"(?i)/(home|users|tmp|var)/",
+    "key-like string": r"\b(sk|pk)-[A-Za-z0-9-]{8,}",
+}
+
+
+def test_report_contains_no_local_paths_or_secrets(
+    archive: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The report is committed to the repo, so it must stay free of machine details."""
+    for var in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "LANGFUSE_SECRET_KEY"):
+        monkeypatch.setenv(var, SENTINEL_KEY)
+    data = tmp_path / "data"
+    data.mkdir()
+    ingest_archive(archive, source(), data, allowlist={})
+
+    text = (data / "ingest_report.json").read_text(encoding="utf-8")
+    assert str(tmp_path) not in text and tmp_path.as_posix() not in text
+    assert SENTINEL_KEY not in text
+    leaks = {
+        name: re.findall(pattern, text)
+        for name, pattern in LEAK_PATTERNS.items()
+        if re.search(pattern, text)
+    }
+    assert leaks == {}
 
 
 def test_reviewed_chunk_can_be_allowlisted(archive: Path, tmp_path: Path) -> None:
