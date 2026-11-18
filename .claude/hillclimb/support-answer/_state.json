@@ -69,9 +69,13 @@
   ],
   "harness_paths": [
     "evals/run.py",
+    "evals/retrieval_compare.py",
     "evals/cases.jsonl",
+    "evals/wording.jsonl",
     "src/rag_support/evaluation.py",
+    "src/rag_support/harness.py",
     "src/rag_support/answer.py",
+    "src/rag_support/rewrite.py",
     "src/rag_support/retrieve.py",
     "src/rag_support/sanitize.py",
     "data/index_info.json"

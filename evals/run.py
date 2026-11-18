@@ -39,8 +39,9 @@ from rag_support.evaluation import (
     grade,
     judge,
     load_cases,
+    mean_ci,
+    per_case_means,
     planted_chunk,
-    wilson_interval,
 )
 from rag_support.harness import FLOW_DIR, HARNESS_PATHS, check_harness
 from rag_support.retrieve import Index, Retriever
@@ -247,8 +248,9 @@ def summarize(variant_dir: Path) -> str:
         if x
     ]
     ok = [r for r in rows if r["status"] == "ok"]
-    passes = sum(int(r["grade"].get("pass", 0)) for r in ok)
-    lo, hi = wilson_interval(passes, len(ok))
+    # Average each case's reps first: reps of one case aren't independent.
+    means = per_case_means(ok, "pass")
+    mean, lo, hi = mean_ci(list(means.values()))
     errors_path = variant_dir / "errors.jsonl"
     errors = (
         len(errors_path.read_text(encoding="utf-8").splitlines())
@@ -257,8 +259,9 @@ def summarize(variant_dir: Path) -> str:
     )
     truncated = len(rows) - len(ok)
     return (
-        f"pass {passes}/{len(ok)} = {passes / max(1, len(ok)):.0%} "
-        f"(95% CI {lo:.0%}-{hi:.0%}) | truncated {truncated} | errors {errors}"
+        f"pass {mean:.0%} over {len(means)} cases ({len(ok)} graded runs; "
+        f"95% CI {max(lo, 0):.0%}-{min(hi, 1):.0%}) | truncated {truncated} | "
+        f"errors {errors}"
     )
 
 

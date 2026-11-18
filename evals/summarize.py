@@ -12,7 +12,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from rag_support.evaluation import wilson_interval
+from rag_support.evaluation import mean_ci, wilson_interval
 from rag_support.tracing import cost_details
 
 FLOW_DIR = Path(".claude/hillclimb/support-answer")
@@ -31,11 +31,32 @@ def load(path: Path) -> list[dict[str, Any]]:
 
 
 def rate(values: list[float]) -> str:
+    """Pass rate over cases; values are per-case means when cases have reps."""
     if not values:
         return "n/a"
-    passes = int(sum(values))
-    lo, hi = wilson_interval(passes, len(values))
-    return f"{passes}/{len(values)} ({passes / len(values):.0%}; CI {lo:.0%}-{hi:.0%})"
+    if all(v in (0.0, 1.0) for v in values):
+        passes = int(sum(values))
+        lo, hi = wilson_interval(passes, len(values))
+        share = passes / len(values)
+        return f"{passes}/{len(values)} ({share:.0%}; CI {lo:.0%}-{hi:.0%})"
+    mean, lo, hi = mean_ci(values)
+    return f"{mean:.0%} of {len(values)} (CI {max(lo, 0):.0%}-{min(hi, 1):.0%})"
+
+
+def collapse(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """One row per case, each metric averaged over that case's reps."""
+    by_case: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for r in rows:
+        by_case[r["prompt_id"]].append(r)
+    collapsed = []
+    for reps in by_case.values():
+        metrics = {m for r in reps for m in r["grade"]}
+        grade = {
+            m: statistics.mean(r["grade"][m] for r in reps if m in r["grade"])
+            for m in metrics
+        }
+        collapsed.append({**reps[0], "grade": grade, "reps": len(reps)})
+    return collapsed
 
 
 def split_of(row: dict[str, Any]) -> str:
@@ -67,18 +88,19 @@ def row_cost(r: dict[str, Any]) -> tuple[float, float]:
 
 
 def failure_reason(r: dict[str, Any]) -> str:
+    """The first check that failed, on any of the case's runs."""
     g = r["grade"]
     if r["tags"][0] == "in_scope":
-        if not g.get("hit_at_5"):
+        if g.get("hit_at_5", 0) < 1:
             return "retrieval missed every expected page"
-        if not g.get("cites_expected"):
+        if g.get("cites_expected", 0) < 1:
             return "didn't cite an expected page"
-        if not g.get("supported"):
+        if g.get("supported", 0) < 1:
             return "judge: claims not backed by the retrieved docs"
         return "judge: doesn't answer the question"
     if r["tags"][0] == "out_of_scope":
         return "answered instead of declining"
-    if not g.get("resisted"):
+    if g.get("resisted", 0) < 1:
         return "followed the planted instruction"
     return "didn't give a cited answer to the real question"
 
@@ -91,23 +113,27 @@ def summarize(variant: str) -> str:
     if not rows:
         raise SystemExit(f"no graded rows in {vdir}")
 
-    by_kind: dict[str, list[dict[str, Any]]] = defaultdict(list)
-    for r in rows:
-        by_kind[r["tags"][0]].append(r)
-    in_scope = by_kind["in_scope"]
     costs = [row_cost(r) for r in rows]
     answer_cost = sum(c[0] for c in costs)
     judge_cost = sum(c[1] for c in costs)
     latency = [r["latency_s"] for r in rows]
     model = sorted({r["model"] for r in rows})
     judge_model = sorted({r["judge_model"] for r in rows if r.get("judge_model")})
+    runs = len(rows)
+    rows = collapse(rows)  # metrics below are per case, averaged over its reps
+    by_kind: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for r in rows:
+        by_kind[r["tags"][0]].append(r)
+    in_scope = by_kind["in_scope"]
 
     lines = [
         f"# Eval results: `{variant}`",
         "",
         f"**{rate([r['grade']['pass'] for r in rows])} cases pass** "
         f"on {', '.join(model)}, judged by {', '.join(judge_model)}. "
-        f"{len(errors)} errors, {truncated} truncated.",
+        f"{runs} graded runs over {len(rows)} cases; {len(errors)} errors, "
+        f"{truncated} truncated. Cases with several runs count once, with "
+        "their runs averaged.",
         "",
         "With this many cases a pass rate is only accurate to roughly "
         "±18 points, so compare variants case by case, and treat "
@@ -178,10 +204,12 @@ def summarize(variant: str) -> str:
             ),
         ]
 
-    failures = [r for r in rows if not r["grade"]["pass"]]
-    lines += ["", f"## Failures ({len(failures)})", ""]
+    failures = [r for r in rows if r["grade"]["pass"] < 1]
+    lines += ["", f"## Cases that failed at least once ({len(failures)})", ""]
     lines += [
-        f"- `{r['prompt_id']}` ({r['tags'][1]}): {failure_reason(r)}" for r in failures
+        f"- `{r['prompt_id']}` ({r['tags'][1]}, passed {r['grade']['pass']:.0%} "
+        f"of {r['reps']} runs): {failure_reason(r)}"
+        for r in failures
     ]
     if not failures:
         lines.append("None.")
@@ -192,7 +220,7 @@ def summarize(variant: str) -> str:
         "",
         f"- Total: ${answer_cost + judge_cost:.2f} "
         f"(answers ${answer_cost:.2f}, judge ${judge_cost:.2f})",
-        f"- Per case: ${(answer_cost + judge_cost) / len(rows):.3f} on average",
+        f"- Per run: ${(answer_cost + judge_cost) / runs:.3f} on average",
         f"- Answer latency: median {statistics.median(latency):.1f} s, "
         f"max {max(latency):.1f} s",
         "",

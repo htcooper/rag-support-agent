@@ -7,7 +7,7 @@ from types import SimpleNamespace as NS
 import numpy as np
 import pytest
 
-from rag_support.answer import Answer, Citation
+from rag_support.answer import Answer, Citation, build_documents
 from rag_support.chunking import DOCS_BASE_URL, Chunk
 from rag_support.evaluation import (
     JUDGE_SCHEMA,
@@ -24,7 +24,9 @@ from rag_support.evaluation import (
     first_expected_rank,
     grade,
     load_cases,
+    mean_ci,
     parse_verdict,
+    per_case_means,
     planted_chunk,
     retrieval_summary,
     wilson_interval,
@@ -233,6 +235,19 @@ def test_judge_request_wraps_untrusted_text_and_uses_schema() -> None:
     assert content.count("</question>") == 1 and content.count("</answer>") == 1
 
 
+def test_judge_sees_every_field_the_assistant_saw() -> None:
+    """Regression: the judge once lacked the Source line and failed cited URLs."""
+    hits = [
+        Hit(chunk("cors", CORS, "Use CORSMiddleware."), 0.6),
+        Hit(chunk("mw", OTHER, "Add middleware with @app.middleware."), 0.5),
+    ]
+    content = build_judge_request("q", hits, "a")["messages"][0]["content"]
+    for block in build_documents(hits):
+        assert block["title"] in content
+        assert block["context"] in content  # "Source: <url>"
+        assert block["source"]["data"] in content
+
+
 def judge_response(text: str, stop: str = "end_turn") -> NS:
     return NS(
         stop_reason=stop,
@@ -348,6 +363,26 @@ def test_truncated_answer_row_has_no_grade() -> None:
     row = build_row(IN_SCOPE, 0, answer, None, {"pass": 1.0}, {}, 3.2, 1)
     assert row["status"] == "truncated" and row["grade"] == {}
     assert row["tags"] == ["in_scope", "easy", "dev"] and row["judge_model"] is None
+
+
+def test_per_case_means_average_reps_and_skip_missing_or_truncated() -> None:
+    rows = [
+        {"prompt_id": "a", "status": "ok", "grade": {"pass": 1.0}},
+        {"prompt_id": "a", "status": "ok", "grade": {"pass": 0.0}},
+        {"prompt_id": "b", "status": "ok", "grade": {"pass": 1.0}},
+        {"prompt_id": "c", "status": "truncated", "grade": {}},
+        {"prompt_id": "d", "status": "ok", "grade": {"declined": 1.0}},
+    ]
+    assert per_case_means(rows, "pass") == {"a": 0.5, "b": 1.0}
+
+
+def test_mean_ci_over_cases() -> None:
+    # values 1, 1, 0, 0.5: mean 0.625, sample variance 0.6875 / 3, n = 4
+    mean, lo, hi = mean_ci([1.0, 1.0, 0.0, 0.5])
+    half = 1.96 * (0.6875 / 3 / 4) ** 0.5
+    assert mean == pytest.approx(0.625)
+    assert (lo, hi) == pytest.approx((0.625 - half, 0.625 + half))
+    assert mean_ci([]) == (0.0, 0.0, 0.0) and mean_ci([0.5]) == (0.5, 0.5, 0.5)
 
 
 @pytest.mark.parametrize(
