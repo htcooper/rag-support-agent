@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from rag_support.answer import SYSTEM_PROMPT, Answer, build_documents
+from rag_support.answer import STRICT_SYSTEM_PROMPT, Answer, build_documents
 from rag_support.chunking import DOCS_BASE_URL, Chunk
 from rag_support.embeddings import Embedder, Vectors
 from rag_support.retrieve import Hit, SupportsRetrieval
@@ -422,7 +422,7 @@ def build_trace(case: Case, answer: Answer, k: int) -> list[dict[str, Any]]:
             },
         ]
     return [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": answer.system_prompt},
         {"role": "user", "content": case.question},
         *rewrite_turns,
         {
@@ -474,6 +474,7 @@ def build_row(
             "retrieved": [h.chunk.url for h in answer.hits],
             "retrieved_chunk_ids": [h.chunk.chunk_id for h in answer.hits],
             "rewrite": answer.rewrite.text if answer.rewrite else None,
+            "strict_prompt": answer.system_prompt == STRICT_SYSTEM_PROMPT,
             "trace_url": answer.trace_url,
         },
     }

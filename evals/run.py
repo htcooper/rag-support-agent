@@ -184,6 +184,7 @@ def run_case(
                 tracer=tracer,
                 trace_metadata={"eval_case": case.id, "eval_variant": args.variant},
                 rewrite=args.rewrite,
+                strict=args.strict,
             )
         )
         latency = time.monotonic() - t0
@@ -279,12 +280,19 @@ def main() -> int:
     parser.add_argument(
         "--rewrite", action="store_true", help="rewrite queries before searching"
     )
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="use the system prompt that forbids details the docs don't state",
+    )
     parser.add_argument("--approve-harness", action="store_true")
     args = parser.parse_args()
     if not re.fullmatch(r"baseline|v\d+", args.variant):
         parser.error("--variant must be 'baseline' or v<N> (the report ignores others)")
     if args.rewrite and args.variant == "baseline":
         parser.error("the baseline runs without --rewrite; use --variant v1")
+    if args.strict and args.variant in ("baseline", "v1"):
+        parser.error("baseline and v1 run with the original prompt; use --variant v2")
 
     load_dotenv(Path(".env"))
     check_harness(args.approve_harness)

@@ -73,6 +73,7 @@ def cmd_ask(args: argparse.Namespace) -> None:
             tracer=tracer,
             public=args.public,
             rewrite=args.rewrite,
+            strict=args.strict,
         )
     except anthropic.AuthenticationError:
         sys.exit("Anthropic rejected the API key. Check ANTHROPIC_API_KEY in .env.")
@@ -151,6 +152,11 @@ def main(argv: list[str] | None = None) -> int:
         "--rewrite",
         action="store_true",
         help="restate the question in the docs' vocabulary before searching",
+    )
+    p_ask.add_argument(
+        "--strict",
+        action="store_true",
+        help="forbid details the retrieved docs don't state",
     )
     p_ask.set_defaults(func=cmd_ask)
 

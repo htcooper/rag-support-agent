@@ -44,6 +44,21 @@ knowledge, and don't guess.
 include one. Keep the whole answer brief.
 """
 
+# v2: the same prompt plus rules against details the documents don't state.
+# v1's failures were mostly correct-sounding additions (tips, caveats, URLs)
+# that no retrieved excerpt supports.
+STRICT_SYSTEM_PROMPT = SYSTEM_PROMPT + """\
+- Every statement in your answer must come from the documents. Don't add \
+facts, tips, caveats, or recommendations that the documents don't state, even \
+ones you know to be true: the user relies on the answer matching the official \
+docs. If something useful isn't covered, leave it out or say the docs you \
+found don't cover it.
+- Link only to URLs that appear in a document's "Source:" line.
+- Base code on the documents' examples. You may adapt names and values to the \
+user's situation, but don't add imports, parameters, or options the documents \
+don't show.
+"""
+
 REFUSAL_TEXT = "I can't help with that request."
 TRUNCATED_NOTE = "\n\n[Answer cut off at the length limit.]"
 
@@ -69,6 +84,7 @@ class Answer:
     usage: dict[str, int] = field(default_factory=dict)
     raw_text: str = ""  # the model's text before link filtering
     rewrite: Rewrite | None = None  # set when the search used a rewritten query
+    system_prompt: str = SYSTEM_PROMPT  # the system prompt this answer was given
     trace_id: str | None = None
     trace_url: str | None = None
 
@@ -104,12 +120,16 @@ def build_documents(hits: list[Hit]) -> list[dict[str, Any]]:
 
 
 def build_request(
-    question: str, hits: list[Hit], model: str, effort: str
+    question: str,
+    hits: list[Hit],
+    model: str,
+    effort: str,
+    system: str = SYSTEM_PROMPT,
 ) -> dict[str, Any]:
     return {
         "model": model,
         "max_tokens": MAX_TOKENS,
-        "system": SYSTEM_PROMPT,
+        "system": system,
         "messages": [
             {
                 "role": "user",
@@ -193,6 +213,7 @@ def answer_question(
     public: bool = False,
     trace_metadata: dict[str, Any] | None = None,
     rewrite: bool = False,
+    strict: bool = False,
 ) -> Answer:
     """Retrieve, then generate, with the trace shaped like the pipeline.
 
@@ -206,6 +227,7 @@ def answer_question(
     never start in the same millisecond and always display in order. With
     rewrite=True, the search uses the question plus a rewrite in the docs'
     vocabulary; Claude still receives only the user's original question.
+    With strict=True, Claude gets STRICT_SYSTEM_PROMPT instead of SYSTEM_PROMPT.
     """
     model = model or os.environ.get("CLAUDE_MODEL") or DEFAULT_MODEL
     tracer = tracer or NoopTracer()
@@ -263,7 +285,8 @@ def answer_question(
                 output=[_hit_summary(i, h) for i, h in enumerate(hits, 1)]
             )
 
-        request = build_request(question, hits, model, effort)
+        system = STRICT_SYSTEM_PROMPT if strict else SYSTEM_PROMPT
+        request = build_request(question, hits, model, effort, system)
         with tracer.span(
             "generate",
             as_type="generation",
@@ -273,6 +296,7 @@ def answer_question(
         ) as span:
             response = client.beta.messages.create(**request)
             answer = parse_response(question, hits, response)
+            answer.system_prompt = system
             span.update(
                 output=answer.text,
                 usage_details={

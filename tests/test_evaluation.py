@@ -7,7 +7,13 @@ from types import SimpleNamespace as NS
 import numpy as np
 import pytest
 
-from rag_support.answer import Answer, Citation, build_documents
+from rag_support.answer import (
+    STRICT_SYSTEM_PROMPT,
+    SYSTEM_PROMPT,
+    Answer,
+    Citation,
+    build_documents,
+)
 from rag_support.chunking import DOCS_BASE_URL, Chunk
 from rag_support.evaluation import (
     JUDGE_SCHEMA,
@@ -297,6 +303,17 @@ def test_rows_and_traces_record_the_rewrite() -> None:
     assert row["meta"]["rewrite"] == "CORSMiddleware"
     names = [t.get("name") for t in build_trace(IN_SCOPE, answer, 5)]
     assert names.index("rewrite_query") < names.index("retrieve")
+
+
+def test_transcript_and_row_record_the_prompt_used() -> None:
+    answer = answer_for([Hit(chunk("c", CORS), 0.6)], [0])
+    assert build_trace(IN_SCOPE, answer, 5)[0]["content"] == SYSTEM_PROMPT
+    row = build_row(IN_SCOPE, 0, answer, None, {}, {}, 1, 1)
+    assert row["meta"]["strict_prompt"] is False
+    answer.system_prompt = STRICT_SYSTEM_PROMPT
+    assert build_trace(IN_SCOPE, answer, 5)[0]["content"] == STRICT_SYSTEM_PROMPT
+    row = build_row(IN_SCOPE, 0, answer, None, {}, {}, 1, 1)
+    assert row["meta"]["strict_prompt"] is True
 
 
 def test_baseline_rows_have_no_rewrite() -> None:

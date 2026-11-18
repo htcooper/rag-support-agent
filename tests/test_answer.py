@@ -10,6 +10,7 @@ import pytest
 
 from rag_support.answer import (
     REFUSAL_TEXT,
+    STRICT_SYSTEM_PROMPT,
     SYSTEM_PROMPT,
     TRUNCATED_NOTE,
     answer_question,
@@ -313,3 +314,26 @@ def test_trace_contains_no_secrets(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     assert sentinel not in payload
     assert not re.search(r"\b(sk|pk)-[A-Za-z0-9-]{8,}", payload)
+
+
+def test_strict_changes_only_the_system_prompt() -> None:
+    plain = FakeClient(response(text_block("A.", cite(0, "CORSMiddleware"))))
+    strict = FakeClient(response(text_block("A.", cite(0, "CORSMiddleware"))))
+    a = answer_question(
+        "cors?", FakeRetriever(), plain, model="m"  # type: ignore[arg-type]
+    )
+    b = answer_question(
+        "cors?", FakeRetriever(), strict, model="m", strict=True  # type: ignore[arg-type]
+    )
+    req_a, req_b = plain.requests[0], strict.requests[0]
+    assert req_a["system"] == SYSTEM_PROMPT and a.system_prompt == SYSTEM_PROMPT
+    assert req_b["system"] == STRICT_SYSTEM_PROMPT
+    assert b.system_prompt == STRICT_SYSTEM_PROMPT
+    assert {k: v for k, v in req_a.items() if k != "system"} == {
+        k: v for k, v in req_b.items() if k != "system"
+    }
+
+
+def test_strict_prompt_extends_the_original_unchanged() -> None:
+    assert STRICT_SYSTEM_PROMPT.startswith(SYSTEM_PROMPT)
+    assert '"Source:"' in STRICT_SYSTEM_PROMPT
