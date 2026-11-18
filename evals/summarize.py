@@ -1,4 +1,4 @@
-"""Write evals/results.md from a run: python -I evals/summarize.py [variant].
+"""Write evals/results-<variant>.md: python -I evals/summarize.py [variant].
 
 Every number is recomputed from the variant's results.jsonl and errors.jsonl.
 """
@@ -16,7 +16,7 @@ from rag_support.evaluation import mean_ci, wilson_interval
 from rag_support.tracing import cost_details
 
 FLOW_DIR = Path(".claude/hillclimb/support-answer")
-OUT = Path("evals/results.md")
+OUT_DIR = Path("evals")
 KIND_LABELS = {
     "in_scope": "Should answer",
     "out_of_scope": "Should decline",
@@ -233,7 +233,7 @@ def main() -> int:
         sys.stdout.reconfigure(encoding="utf-8")
     variant = sys.argv[1] if len(sys.argv) > 1 else "baseline"
     text = summarize(variant)
-    OUT.write_text(text, encoding="utf-8", newline="\n")
+    (OUT_DIR / f"results-{variant}.md").write_text(text, encoding="utf-8", newline="\n")
     print(text)
     return 0
 
