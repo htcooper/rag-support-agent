@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 
 from rag_support.answer import DEFAULT_EFFORT, answer_question
 from rag_support.embeddings import OpenAIEmbedder
+from rag_support.errors import describe_api_error
 from rag_support.index import build_index
 from rag_support.ingest import pin, run_ingest
 from rag_support.retrieve import Index, Retriever
@@ -75,16 +76,11 @@ def cmd_ask(args: argparse.Namespace) -> None:
             rewrite=args.rewrite,
             strict=args.strict,
         )
-    except anthropic.AuthenticationError:
-        sys.exit("Anthropic rejected the API key. Check ANTHROPIC_API_KEY in .env.")
-    except anthropic.PermissionDeniedError as e:
-        sys.exit(f"The API key can't use this model or feature: {e.message}")
-    except anthropic.RateLimitError:
-        sys.exit("Rate limited or spend cap reached. Try again later.")
-    except anthropic.APIStatusError as e:
-        sys.exit(f"Anthropic API error {e.status_code}: {e.message}")
-    except anthropic.APIConnectionError:
-        sys.exit("Couldn't reach the Anthropic API. Check the network connection.")
+    except anthropic.APIError as e:
+        message = describe_api_error(e)
+        if message is None:
+            raise
+        sys.exit(message)
     finally:
         tracer.flush()  # send the trace even when the call failed
 
