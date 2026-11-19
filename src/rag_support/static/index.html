@@ -1,0 +1,1157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Support Agent</title>
+<style>
+:root {
+  --bg: #f6f6f3;
+  --surface: #ffffff;
+  --surface-2: #fafaf8;
+  --text: #1b1d21;
+  --muted: #5d636e;
+  --faint: #8b919c;
+  --border: #e2e3e7;
+  --accent: #2f5bd3;
+  --accent-ink: #ffffff;
+  --accent-soft: #e9eefc;
+  --cited: #1d7a4b;
+  --cited-soft: #e3f3ea;
+  --warn: #8a5a00;
+  --warn-soft: #fcf2db;
+  --danger: #b42318;
+  --danger-soft: #fdecea;
+  --code-bg: #eceef2;
+  --code-text: #1f2329;
+  --flash: #fff3bf;
+  --shadow: 0 1px 2px rgba(20, 24, 33, 0.05), 0 4px 16px rgba(20, 24, 33, 0.04);
+  --radius: 12px;
+  --mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #101216;
+    --surface: #171a1f;
+    --surface-2: #1b1e24;
+    --text: #e6e7ea;
+    --muted: #a0a6b1;
+    --faint: #737a86;
+    --border: #2a2e36;
+    --accent: #7d9cff;
+    --accent-ink: #0d1020;
+    --accent-soft: #1d2540;
+    --cited: #62d39c;
+    --cited-soft: #142a1f;
+    --warn: #f0c062;
+    --warn-soft: #2d2513;
+    --danger: #ff8b80;
+    --danger-soft: #331a1a;
+    --code-bg: #0c0e11;
+    --code-text: #dfe2e7;
+    --flash: #3a3417;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #101216;
+  --surface: #171a1f;
+  --surface-2: #1b1e24;
+  --text: #e6e7ea;
+  --muted: #a0a6b1;
+  --faint: #737a86;
+  --border: #2a2e36;
+  --accent: #7d9cff;
+  --accent-ink: #0d1020;
+  --accent-soft: #1d2540;
+  --cited: #62d39c;
+  --cited-soft: #142a1f;
+  --warn: #f0c062;
+  --warn-soft: #2d2513;
+  --danger: #ff8b80;
+  --danger-soft: #331a1a;
+  --code-bg: #0c0e11;
+  --code-text: #dfe2e7;
+  --flash: #3a3417;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+a { color: var(--accent); }
+code { font-family: var(--mono); font-size: 0.88em; }
+
+.wrap { max-width: 1180px; margin: 0 auto; padding: 32px 16px 96px; }
+
+/* Header */
+.top { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+.mark {
+  width: 36px; height: 36px; border-radius: 10px; flex: none;
+  display: grid; place-items: center;
+  background: var(--accent); color: var(--accent-ink);
+}
+.top h1 { font-size: 19px; line-height: 1.2; margin: 0; letter-spacing: -0.01em; }
+.top p { margin: 2px 0 0; color: var(--muted); font-size: 13.5px; }
+
+/* Ask form */
+.ask {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px;
+}
+.ask textarea {
+  width: 100%; resize: vertical; min-height: 64px;
+  border: 1px solid var(--border); border-radius: 8px;
+  background: var(--surface-2); color: var(--text);
+  font: inherit; font-size: 16px; padding: 10px 12px;
+}
+.ask textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.ask-row {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-top: 10px;
+}
+.toggles { display: flex; flex-wrap: wrap; gap: 6px 16px; color: var(--muted); font-size: 13.5px; }
+.toggles label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.toggles input { accent-color: var(--accent); width: 15px; height: 15px; margin: 0; }
+.ask-row .spacer { flex: 1; }
+.hint { color: var(--faint); font-size: 12.5px; }
+@media (max-width: 600px) { .ask-row .hint { display: none; } }
+button.primary {
+  appearance: none; border: 0; border-radius: 8px; cursor: pointer;
+  background: var(--accent); color: var(--accent-ink);
+  font: inherit; font-weight: 600; padding: 8px 18px;
+}
+button.primary:disabled { opacity: 0.55; cursor: default; }
+.examples { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.examples button {
+  appearance: none; cursor: pointer; font: inherit; font-size: 13px;
+  border: 1px solid var(--border); background: transparent; color: var(--muted);
+  border-radius: 999px; padding: 3px 11px; text-align: left;
+}
+.examples button:hover { color: var(--text); border-color: var(--faint); }
+
+/* Results */
+.results {
+  display: grid; gap: 20px; margin-top: 20px;
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (min-width: 940px) {
+  .results { grid-template-columns: minmax(0, 1fr) 360px; align-items: start; }
+  .sources { position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto; }
+}
+.panel {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--shadow);
+}
+.answer { padding: 20px 22px; min-width: 0; }
+.label {
+  font-size: 11.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--faint); margin: 0 0 10px;
+}
+
+.banner {
+  display: flex; gap: 10px; align-items: flex-start;
+  border-radius: 8px; padding: 10px 12px; margin-bottom: 16px; font-size: 14px;
+}
+.banner svg { flex: none; margin-top: 2px; }
+.banner.warn { background: var(--warn-soft); color: var(--warn); }
+.banner.danger { background: var(--danger-soft); color: var(--danger); }
+.banner b { font-weight: 600; }
+.banner span { color: var(--text); }
+
+.body > :first-child { margin-top: 0; }
+.body > :last-child { margin-bottom: 0; }
+.body p { margin: 0 0 12px; }
+.body ul, .body ol { margin: 0 0 12px; padding-left: 22px; }
+.body li { margin: 4px 0; }
+.body li::marker { color: var(--faint); }
+.body :not(pre) > code {
+  background: var(--code-bg); color: var(--code-text);
+  padding: 1px 4px; border-radius: 4px; overflow-wrap: anywhere;
+}
+.body a.link { overflow-wrap: anywhere; }
+
+.cite {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px; padding: 0 5px; margin: 0 1px;
+  border-radius: 5px; vertical-align: 2px;
+  background: var(--cited-soft); color: var(--cited);
+  font-size: 11px; font-weight: 700; line-height: 1; text-decoration: none;
+  font-variant-numeric: tabular-nums;
+}
+.cite:hover, .cite.on { background: var(--cited); color: var(--surface); }
+
+.code {
+  margin: 0 0 14px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--code-bg); overflow: hidden;
+}
+.code-head {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 5px 8px 5px 12px; border-bottom: 1px solid var(--border);
+  font-size: 12px; color: var(--faint);
+}
+.code-head button {
+  appearance: none; border: 0; background: transparent; color: var(--muted);
+  font: inherit; cursor: pointer; padding: 2px 6px; border-radius: 4px;
+}
+.code-head button:hover { color: var(--text); background: var(--surface); }
+.code pre {
+  margin: 0; padding: 12px 14px; overflow-x: auto;
+  color: var(--code-text); font: 13px/1.55 var(--mono); tab-size: 4;
+}
+
+.meta {
+  display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center;
+  margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border);
+  color: var(--faint); font-size: 12.5px; font-variant-numeric: tabular-nums;
+}
+.meta a { color: var(--muted); text-decoration: none; }
+.meta a:hover { color: var(--accent); }
+.meta .note { color: var(--warn); }
+
+.searched {
+  margin-top: 14px; border-radius: 8px; background: var(--surface-2);
+  border: 1px solid var(--border); padding: 10px 12px; font-size: 13px; color: var(--muted);
+}
+.searched b { color: var(--text); font-weight: 600; }
+.searched p { margin: 4px 0 0; }
+
+/* Sources */
+.sources { padding: 16px; }
+.sources-head { display: flex; justify-content: space-between; align-items: baseline; }
+.sources-head .count { font-size: 12.5px; color: var(--muted); }
+.cards { display: grid; gap: 10px; grid-template-columns: minmax(0, 1fr); }
+.card {
+  min-width: 0;
+  border: 1px solid var(--border); border-radius: 10px; padding: 11px 12px;
+  background: var(--surface); transition: background-color 0.6s, border-color 0.2s;
+  scroll-margin: 16px;
+}
+.card.uncited { background: var(--surface-2); }
+.card.uncited .title { color: var(--muted); }
+.card.on { border-color: var(--cited); }
+.card.flash { background: var(--flash); transition: none; }
+.card-top { display: flex; gap: 10px; align-items: flex-start; }
+.rank {
+  flex: none; width: 22px; height: 22px; border-radius: 6px;
+  display: grid; place-items: center; font-size: 12px; font-weight: 700;
+  background: var(--border); color: var(--muted);
+}
+.card.cited .rank { background: var(--cited-soft); color: var(--cited); }
+.card-main { min-width: 0; flex: 1; }
+.crumb { font-size: 11.5px; color: var(--faint); line-height: 1.35; overflow-wrap: anywhere; }
+.title { font-weight: 600; font-size: 14px; line-height: 1.35; overflow-wrap: anywhere; }
+.card-sub {
+  display: flex; gap: 8px; align-items: center; margin-top: 4px;
+  font-size: 12px; color: var(--faint);
+}
+.card-sub a {
+  color: var(--muted); text-decoration: none; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.card-sub a:hover { color: var(--accent); text-decoration: underline; }
+.card-sub .score { flex: none; font-variant-numeric: tabular-nums; }
+.badge {
+  flex: none; font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 999px;
+  background: var(--cited-soft); color: var(--cited);
+}
+.badge.no { background: transparent; color: var(--faint); border: 1px solid var(--border); }
+.quote {
+  margin: 9px 0 0; padding: 2px 0 2px 10px; border-left: 3px solid var(--cited);
+  font-size: 13px; line-height: 1.5; color: var(--text); white-space: pre-line;
+}
+.quote code { background: var(--code-bg); padding: 0 4px; border-radius: 3px; }
+.preview {
+  margin: 8px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--muted);
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+
+/* Loading and empty */
+.loading { display: flex; gap: 12px; align-items: center; color: var(--muted); font-size: 14px; }
+.spinner {
+  width: 18px; height: 18px; border-radius: 50%; flex: none;
+  border: 2px solid var(--border); border-top-color: var(--accent);
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.skel { margin-top: 18px; display: grid; gap: 10px; }
+.skel i {
+  display: block; height: 12px; border-radius: 6px; background: var(--border);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+@keyframes pulse { 50% { opacity: 0.45; } }
+@media (prefers-reduced-motion: reduce) {
+  .spinner, .skel i { animation: none; }
+}
+.empty { color: var(--faint); font-size: 14px; }
+
+/* Mock-only state bar: removed when the page is wired to /api/ask */
+.mockbar {
+  position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%);
+  display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; justify-content: center;
+  max-width: calc(100vw - 24px);
+  background: var(--text); color: var(--bg); border-radius: 12px;
+  padding: 7px 10px; font-size: 12.5px; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+}
+.mockbar[hidden] { display: none; }
+
+/* ---- View switch: end-user view by default, developer view with ?dev=1 ---- */
+body:not(.dev) .dev-only { display: none !important; }
+body:not(.dev) .wrap { max-width: 800px; }
+body:not(.dev) .results { grid-template-columns: minmax(0, 1fr); }
+body:not(.dev) .answer { padding: 22px 24px; }
+body:not(.dev) .ask-row { flex-wrap: nowrap; }
+
+/* End-user sources: cited pages only, each expands to its quoted passages */
+.srcs { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
+.srcs h3 { font-size: 14px; margin: 0 0 8px; }
+.src { border: 1px solid var(--border); border-radius: 10px; margin-top: 8px; scroll-margin: 16px; }
+.src.flash { background: var(--flash); }
+.src.on { border-color: var(--cited); }
+.src summary {
+  display: flex; gap: 10px; align-items: center; cursor: pointer; list-style: none;
+  padding: 10px 12px; border-radius: 10px;
+}
+.src summary::-webkit-details-marker { display: none; }
+.src summary:hover { background: var(--surface-2); }
+.src summary .rank { background: var(--cited-soft); color: var(--cited); }
+.src-name { min-width: 0; flex: 1; }
+.src-name .title { font-size: 14px; }
+.src-name .path { font-size: 12px; color: var(--faint); overflow-wrap: anywhere; }
+.chev { flex: none; color: var(--faint); transition: transform 0.15s; }
+.src[open] .chev { transform: rotate(180deg); }
+.src-body { padding: 0 12px 12px 44px; }
+.src-body .quote:first-child { margin-top: 0; }
+.src-body a.open { display: inline-block; margin-top: 10px; font-size: 13px; text-decoration: none; }
+.src-body a.open:hover { text-decoration: underline; }
+.banner.neutral { background: var(--surface-2); color: var(--muted); border: 1px solid var(--border); }
+.mockbar b { opacity: 0.6; font-weight: 600; }
+.mockbar select {
+  font: inherit; font-size: 12.5px; border-radius: 6px; padding: 2px 4px;
+  border: 0; background: var(--bg); color: var(--text);
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="mark" aria-hidden="true">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"/><path d="M9 10h6"/></svg>
+    </div>
+    <div>
+      <h1>Support agent</h1>
+      <p>Ask a question about FastAPI. Answers from the official docs, with linked sources.</p>
+    </div>
+  </header>
+
+  <form class="ask" id="ask">
+    <label for="q" class="label">Your question</label>
+    <textarea id="q" rows="2" maxlength="1000" placeholder="How do I return a 404 with a custom message?"></textarea>
+    <div class="ask-row">
+      <div class="toggles dev-only">
+        <label title="Restate the question in the docs' vocabulary before searching"><input type="checkbox" id="rewrite" checked> Rewrite query</label>
+        <label title="Forbid details the retrieved docs don't state"><input type="checkbox" id="strict" checked> Strict grounding</label>
+      </div>
+      <span class="spacer"></span>
+      <button class="primary" id="go" type="submit">Ask</button>
+    </div>
+    <div class="examples" id="examples"></div>
+  </form>
+
+  <section class="results" id="results" aria-live="polite"></section>
+</div>
+
+<div class="mockbar" id="mockbar">
+  <b>MOCK</b>
+  <label>View
+    <select id="mock-view">
+      <option value="user">End user</option>
+      <option value="dev">Developer</option>
+    </select>
+  </label>
+  <label>State
+    <select id="mock-state">
+      <option value="answered">Answered</option>
+      <option value="declined_cited">Declined, cites a page</option>
+      <option value="not_covered">Not covered (no citations)</option>
+      <option value="refused">Refused</option>
+      <option value="error">Error</option>
+      <option value="loading">Loading</option>
+      <option value="empty">Empty (first visit)</option>
+    </select>
+  </label>
+  <label>Theme
+    <select id="mock-theme">
+      <option value="auto">Auto</option>
+      <option value="light">Light</option>
+      <option value="dark">Dark</option>
+    </select>
+  </label>
+</div>
+
+<script type="application/json" id="fixture">{
+ "answered": {
+  "question": "My React app on localhost:3000 gets blocked when it calls my FastAPI backend. How do I fix it?",
+  "text": "This is a CORS issue: your frontend and backend are on different origins, so you need to add `CORSMiddleware` and allow `http://localhost:3000`.\n\n**Why it happens:** An origin is the combination of protocol (`http`, `https`), domain (`myapp.com`, `localhost`, `localhost.tiangolo.com`), and port (`80`, `443`, `8080`).[2] Your React app on port 3000 is a different origin from your backend, so the backend must have a list of \"allowed origins\".[2]\n\n**Fix:** The steps are to import `CORSMiddleware`, create a list of allowed origins (as strings), and add it as a \"middleware\" to your **FastAPI** application.[1]\n\n```python\nfrom fastapi import FastAPI\nfrom fastapi.middleware.cors import CORSMiddleware\n\napp = FastAPI()\n\norigins = [\n    \"http://localhost:3000\",\n]\n\napp.add_middleware(\n    CORSMiddleware,\n    allow_origins=origins,\n    allow_credentials=True,\n    allow_methods=[\"*\"],\n    allow_headers=[\"*\"],\n)\n```\n\n**Notes:**\n- List the origin explicitly rather than using `\"*\"`. A wildcard will only allow certain types of communication, excluding everything that involves credentials: Cookies, Authorization headers like those used with Bearer Tokens, etc.[1]\n- The defaults are strict. `allow_methods` - A list of HTTP methods that should be allowed for cross-origin requests. Defaults to `['GET']`.[1] If you send `POST`, `PUT`, or custom headers, you need to set `allow_methods` and `allow_headers` as shown above.\n- If you deploy the frontend somewhere else later, add that exact origin to the list too. The protocol and port must match.",
+  "grounded": true,
+  "refused": false,
+  "citations": [
+   {
+    "rank": 2,
+    "heading": "CORS (Cross-Origin Resource Sharing)",
+    "url": "https://fastapi.tiangolo.com/tutorial/cors/",
+    "cited_text": "An origin is the combination of protocol (`http`, `https`), domain (`myapp.com`, `localhost`, `localhost.tiangolo.com`), and port (`80`, `443`, `8080`)."
+   },
+   {
+    "rank": 2,
+    "heading": "CORS (Cross-Origin Resource Sharing)",
+    "url": "https://fastapi.tiangolo.com/tutorial/cors/",
+    "cited_text": "To achieve this, the `:80`-backend must have a list of \"allowed origins\"."
+   },
+   {
+    "rank": 1,
+    "heading": "CORS (Cross-Origin Resource Sharing) > Wildcards",
+    "url": "https://fastapi.tiangolo.com/tutorial/cors/",
+    "cited_text": "* Import `CORSMiddleware`.\n* Create a list of allowed origins (as strings).\n* Add it as a \"middleware\" to your **FastAPI** application."
+   },
+   {
+    "rank": 1,
+    "heading": "CORS (Cross-Origin Resource Sharing) > Wildcards",
+    "url": "https://fastapi.tiangolo.com/tutorial/cors/",
+    "cited_text": "But that will only allow certain types of communication, excluding everything that involves credentials: Cookies, Authorization headers like those used with Bearer Tokens, etc."
+   },
+   {
+    "rank": 1,
+    "heading": "CORS (Cross-Origin Resource Sharing) > Wildcards",
+    "url": "https://fastapi.tiangolo.com/tutorial/cors/",
+    "cited_text": "`allow_methods` - A list of HTTP methods that should be allowed for cross-origin requests. Defaults to `['GET']`."
+   }
+  ],
+  "hits": [
+   {
+    "rank": 1,
+    "heading": "CORS (Cross-Origin Resource Sharing) > Wildcards",
+    "url": "https://fastapi.tiangolo.com/tutorial/cors/",
+    "score": 0.5686,
+    "cited": true,
+    "preview": "## Wildcards { #wildcards } It's also possible to declare the list as `\"*\"` (a \"wildcard\") to say that all are allowed. But that will only allow certain types of communication, excluding everything that involves credentials: Cookies, Authorization headers like those used with Bearer Tokens, etc. So,"
+   },
+   {
+    "rank": 2,
+    "heading": "CORS (Cross-Origin Resource Sharing)",
+    "url": "https://fastapi.tiangolo.com/tutorial/cors/",
+    "score": 0.5234,
+    "cited": true,
+    "preview": "# CORS (Cross-Origin Resource Sharing) { #cors-cross-origin-resource-sharing } CORS or \"Cross-Origin Resource Sharing\" refers to the situations when a frontend running in a browser has JavaScript code that communicates with a backend, and the backend is in a different \"origin\" than the frontend. ## "
+   },
+   {
+    "rank": 3,
+    "heading": "CORS (Cross-Origin Resource Sharing) > Use `CORSMiddleware` > CORS preflight requests",
+    "url": "https://fastapi.tiangolo.com/tutorial/cors/",
+    "score": 0.488,
+    "cited": false,
+    "preview": "### CORS preflight requests { #cors-preflight-requests } These are any `OPTIONS` request with `Origin` and `Access-Control-Request-Method` headers. In this case the middleware will intercept the incoming request and respond with appropriate CORS headers, and either a `200` or `400` response for info"
+   },
+   {
+    "rank": 4,
+    "heading": "Frontend > Client-Side Routing",
+    "url": "https://fastapi.tiangolo.com/tutorial/frontend/",
+    "score": 0.4819,
+    "cited": false,
+    "preview": "## Client-Side Routing { #client-side-routing } Many frontend apps, including **single-page apps** (SPAs), use client-side routing. A path like `/dashboard/settings` might not be a real file but the framework would take care of handling it. So, if accessing that URL directly (instead of navigating t"
+   },
+   {
+    "rank": 5,
+    "heading": "Strict Content-Type Checking",
+    "url": "https://fastapi.tiangolo.com/advanced/strict-content-type/",
+    "score": 0.4602,
+    "cited": false,
+    "preview": "# Strict Content-Type Checking { #strict-content-type-checking } By default, **FastAPI** uses strict `Content-Type` header checking for JSON request bodies, this means that JSON requests **must** include a valid `Content-Type` header (e.g. `application/json`) in order for the body to be parsed as JS"
+   }
+  ],
+  "rewrite": "CORS middleware CORSMiddleware allow_origins allow_methods allow_headers cross-origin resource sharing",
+  "model": "claude-opus-5-5",
+  "stop_reason": "end_turn",
+  "usage": {
+   "input_tokens": 5965,
+   "output_tokens": 766
+  },
+  "cost_usd": 0.0392,
+  "latency_s": 9.0,
+  "notes": [],
+  "trace_url": "#mock-trace"
+ },
+ "declined_cited": {
+  "question": "How do I configure the Django admin site?",
+  "text": "I couldn't find anything about configuring the Django admin site in the FastAPI docs. The only Django-related material I found is a comparison page, which says Django REST Framework was created to be a flexible toolkit for building Web APIs using Django underneath, to improve its API capabilities.[1] It doesn't cover the Django admin.\n\nSince the admin site is part of Django rather than FastAPI, look in Django's own documentation for \"admin site\" configuration. If you meant something FastAPI-specific, such as adding authentication to your API, the FastAPI security tutorial (https://fastapi.tiangolo.com/tutorial/security/) may be a better place to start.",
+  "grounded": true,
+  "refused": false,
+  "citations": [
+   {
+    "rank": 1,
+    "heading": "Alternatives, Inspiration and Comparisons > Previous tools > Django REST Framework",
+    "url": "https://fastapi.tiangolo.com/alternatives/",
+    "cited_text": "Django REST Framework was created to be a flexible toolkit for building Web APIs using Django underneath, to improve its API capabilities."
+   }
+  ],
+  "hits": [
+   {
+    "rank": 1,
+    "heading": "Alternatives, Inspiration and Comparisons > Previous tools > Django REST Framework",
+    "url": "https://fastapi.tiangolo.com/alternatives/",
+    "score": 0.5171,
+    "cited": true,
+    "preview": "### Django REST Framework { #django-rest-framework } Django REST Framework was created to be a flexible toolkit for building Web APIs using Django underneath, to improve its API capabilities. It is used by many companies including Mozilla, Red Hat and Eventbrite. It was one of the first examples of "
+   },
+   {
+    "rank": 2,
+    "heading": "Frontend > Client-Side Routing",
+    "url": "https://fastapi.tiangolo.com/tutorial/frontend/",
+    "score": 0.5107,
+    "cited": false,
+    "preview": "## Client-Side Routing { #client-side-routing } Many frontend apps, including **single-page apps** (SPAs), use client-side routing. A path like `/dashboard/settings` might not be a real file but the framework would take care of handling it. So, if accessing that URL directly (instead of navigating t"
+   },
+   {
+    "rank": 3,
+    "heading": "",
+    "url": "https://fastapi.tiangolo.com/",
+    "score": 0.5001,
+    "cited": false,
+    "preview": "--- include_yaml: sponsors: data/sponsors.yml --- # FastAPI { #fastapi } FastAPI framework, high performance, easy to learn, fast to code, ready for production --- **Documentation**: [https://fastapi.tiangolo.com](https://fastapi.tiangolo.com) **Source Code**: [https://github.com/fastapi/fastapi](ht"
+   },
+   {
+    "rank": 4,
+    "heading": "Security > **FastAPI** utilities",
+    "url": "https://fastapi.tiangolo.com/tutorial/security/",
+    "score": 0.5,
+    "cited": false,
+    "preview": "## **FastAPI** utilities { #fastapi-utilities } FastAPI provides several tools for each of these security schemes in the `fastapi.security` module that simplify using these security mechanisms. In the next chapters you will see how to add security to your API using those tools provided by **FastAPI*"
+   },
+   {
+    "rank": 5,
+    "heading": "Features > FastAPI features > Security and authentication",
+    "url": "https://fastapi.tiangolo.com/features/",
+    "score": 0.4994,
+    "cited": false,
+    "preview": "### Security and authentication { #security-and-authentication } Security and authentication integrated. Without any compromise with databases or data models. All the security schemes defined in OpenAPI, including: * HTTP Basic. * **OAuth2** (also with **JWT tokens**). Check the tutorial on [OAuth2 "
+   }
+  ],
+  "rewrite": "FastAPI documentation search for Django admin configuration: the question concerns a different framework, so no FastAPI features match. Closest analogue: FastAPI admin panel integration, third-party admin dashboards, middleware, templates, static files, mounting sub-applications",
+  "model": "claude-opus-5-5",
+  "stop_reason": "end_turn",
+  "usage": {
+   "input_tokens": 4890,
+   "output_tokens": 346
+  },
+  "cost_usd": 0.0265,
+  "latency_s": 5.6,
+  "notes": [],
+  "trace_url": "#mock-trace"
+ },
+ "not_covered": {
+  "question": "What's the capital of Australia?",
+  "text": "I couldn't find that in the FastAPI docs. The documents I have only cover FastAPI topics, such as path parameters, Pydantic and Starlette, security utilities, and the FastAPI CLI. They don't include any geography information.\n\nI can only answer FastAPI questions from the official docs. If you have one, for example about path parameters, validation, security, or the `fastapi` CLI, I'm happy to help.",
+  "grounded": false,
+  "refused": false,
+  "citations": [],
+  "hits": [
+   {
+    "rank": 1,
+    "heading": "Path Parameters > Recap",
+    "url": "https://fastapi.tiangolo.com/tutorial/path-params/",
+    "score": 0.3304,
+    "cited": false,
+    "preview": "## Recap { #recap } With **FastAPI**, by using short, intuitive and standard Python type declarations, you get: * Editor support: error checks, autocompletion, etc. * Data \"parsing\" * Data validation * API annotation and automatic documentation And you only have to declare them once. That's probably"
+   },
+   {
+    "rank": 2,
+    "heading": "Alternatives, Inspiration and Comparisons > Used by **FastAPI**",
+    "url": "https://fastapi.tiangolo.com/alternatives/",
+    "score": 0.3273,
+    "cited": false,
+    "preview": "## Used by **FastAPI** { #used-by-fastapi } ### Pydantic { #pydantic } Pydantic is a library to define data validation, serialization and documentation (using JSON Schema) based on Python type hints. That makes it extremely intuitive. It is comparable to Marshmallow. Although it's faster than Marshm"
+   },
+   {
+    "rank": 3,
+    "heading": "Security > **FastAPI** utilities",
+    "url": "https://fastapi.tiangolo.com/tutorial/security/",
+    "score": 0.3269,
+    "cited": false,
+    "preview": "## **FastAPI** utilities { #fastapi-utilities } FastAPI provides several tools for each of these security schemes in the `fastapi.security` module that simplify using these security mechanisms. In the next chapters you will see how to add security to your API using those tools provided by **FastAPI*"
+   },
+   {
+    "rank": 4,
+    "heading": "About",
+    "url": "https://fastapi.tiangolo.com/about/",
+    "score": 0.326,
+    "cited": false,
+    "preview": "# About { #about } About FastAPI, its design, inspiration and more. 🤓"
+   },
+   {
+    "rank": 5,
+    "heading": "Release Notes > 0.111.0 (2024-05-03)",
+    "url": "https://fastapi.tiangolo.com/release-notes/",
+    "score": 0.3188,
+    "cited": false,
+    "preview": "## 0.111.0 (2024-05-03) ### Features * ✨ Add FastAPI CLI, the new `fastapi` command. PR [#11522](https://github.com/tiangolo/fastapi/pull/11522) by [@tiangolo](https://github.com/tiangolo). * New docs: [FastAPI CLI](https://fastapi.tiangolo.com/fastapi-cli/). Try it out with: ```console $ pip instal"
+   }
+  ],
+  "rewrite": "FastAPI documentation search: no direct match; closest topics would be none for geography trivia",
+  "model": "claude-opus-5-5",
+  "stop_reason": "end_turn",
+  "usage": {
+   "input_tokens": 4069,
+   "output_tokens": 135
+  },
+  "cost_usd": 0.019,
+  "latency_s": 3.0,
+  "notes": [],
+  "trace_url": "#mock-trace"
+ }
+}</script>
+<script>
+"use strict";
+
+const EXAMPLES = [
+  "My React app on localhost:3000 gets blocked when it calls my FastAPI backend. How do I fix it?",
+  "How do I return a 404 with a custom message?",
+  "How do I load a machine learning model once when the app starts, not on every request?",
+  "How do I make an endpoint only work for logged-in users?",
+];
+
+const $ = (id) => document.getElementById(id);
+const results = $("results");
+
+function el(tag, cls, text) {
+  const node = document.createElement(tag);
+  if (cls) node.className = cls;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+function icon(path) {
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("width", "16");
+  svg.setAttribute("height", "16");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("stroke", "currentColor");
+  svg.setAttribute("stroke-width", "2");
+  svg.setAttribute("stroke-linecap", "round");
+  svg.setAttribute("stroke-linejoin", "round");
+  svg.setAttribute("aria-hidden", "true");
+  const p = document.createElementNS(ns, "path");
+  p.setAttribute("d", path);
+  svg.appendChild(p);
+  return svg;
+}
+const ICON_WARN = "M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z";
+const ICON_STOP = "M12 8v4m0 4h.01M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z";
+
+// ---- Answer rendering: DOM nodes and textContent only, never innerHTML ----
+// The answer is model output built from untrusted docs, so nothing in it is
+// ever parsed as HTML.
+
+function safeHttpsUrl(raw) {
+  try {
+    const u = new URL(raw);
+    return u.protocol === "https:" ? u.href : null;
+  } catch {
+    return null;
+  }
+}
+
+const INLINE = /(`[^`\n]+`)|(\*\*[^*\n]+\*\*)|\[(\d+)\]|(https:\/\/[^\s<>"'`)\]]+)/g;
+
+function renderInline(text, parent) {
+  let last = 0;
+  for (const m of text.matchAll(INLINE)) {
+    if (m.index > last) parent.appendChild(document.createTextNode(text.slice(last, m.index)));
+    let consumed = m[0];
+    if (m[1]) {
+      parent.appendChild(el("code", "", m[1].slice(1, -1)));
+    } else if (m[2]) {
+      const strong = el("strong");
+      renderInline(m[2].slice(2, -2), strong);
+      parent.appendChild(strong);
+    } else if (m[3]) {
+      parent.appendChild(citeLink(Number(m[3])));
+    } else if (m[4]) {
+      const url = m[4].replace(/[.,;:!?]+$/, "");
+      consumed = url;
+      const href = safeHttpsUrl(url);
+      if (href) {
+        const a = el("a", "link", url);
+        a.href = href;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        parent.appendChild(a);
+      } else {
+        parent.appendChild(document.createTextNode(url));
+      }
+    }
+    last = m.index + consumed.length;
+  }
+  if (last < text.length) parent.appendChild(document.createTextNode(text.slice(last)));
+}
+
+// The developer view numbers sources by retrieval rank, matching traces and
+// eval reports. The end-user view renumbers cited sources 1, 2, ... in the
+// order the answer first uses them.
+let DEV = false;
+let citeNumber = (rank) => rank;
+
+function citeLink(rank) {
+  const n = citeNumber(rank);
+  const a = el("a", "cite", String(n));
+  a.href = "#src-" + rank;
+  a.dataset.rank = String(rank);
+  a.setAttribute("aria-label", "Source " + n);
+  a.addEventListener("click", (e) => {
+    e.preventDefault();
+    focusCard(rank);
+  });
+  a.addEventListener("mouseenter", () => markRank(rank, true));
+  a.addEventListener("mouseleave", () => markRank(rank, false));
+  return a;
+}
+
+function renderProse(text, parent) {
+  for (const block of text.split(/\n{2,}/)) {
+    if (!block.trim()) continue;
+    let para = null;
+    let list = null;
+    for (const line of block.split("\n")) {
+      const bullet = line.match(/^\s*[-*]\s+(.*)$/);
+      const numbered = line.match(/^\s*\d+[.)]\s+(.*)$/);
+      if (bullet || numbered) {
+        const tag = bullet ? "ul" : "ol";
+        if (!list || list.tagName.toLowerCase() !== tag) {
+          list = el(tag);
+          parent.appendChild(list);
+        }
+        para = null;
+        const li = el("li");
+        renderInline((bullet || numbered)[1], li);
+        list.appendChild(li);
+      } else if (line.trim()) {
+        list = null;
+        if (!para) {
+          para = el("p");
+          parent.appendChild(para);
+        } else {
+          para.appendChild(document.createTextNode(" "));
+        }
+        renderInline(line, para);
+      }
+    }
+  }
+}
+
+function codeBlock(lang, code) {
+  const wrap = el("div", "code");
+  const head = el("div", "code-head");
+  head.appendChild(el("span", "", lang || "code"));
+  const copy = el("button", "", "Copy");
+  copy.type = "button";
+  copy.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      copy.textContent = "Copied";
+    } catch {
+      copy.textContent = "Copy failed";
+    }
+    setTimeout(() => (copy.textContent = "Copy"), 1500);
+  });
+  head.appendChild(copy);
+  const pre = el("pre");
+  pre.appendChild(el("code", "", code));
+  wrap.append(head, pre);
+  return wrap;
+}
+
+function renderAnswer(text, parent) {
+  const fence = /```([\w+-]*)[ \t]*\n([\s\S]*?)```/g;
+  let last = 0;
+  for (const m of text.matchAll(fence)) {
+    renderProse(text.slice(last, m.index), parent);
+    parent.appendChild(codeBlock(m[1], m[2].replace(/\n$/, "")));
+    last = m.index + m[0].length;
+  }
+  renderProse(text.slice(last), parent);
+}
+
+// ---- Sources ----
+
+function splitHeading(heading, url) {
+  const clean = (heading || "").replace(/\*\*|`/g, "").trim();
+  if (!clean) return { crumb: "", title: url.replace(/^https:\/\//, "").replace(/\/$/, "") };
+  const parts = clean.split(" > ");
+  return { crumb: parts.slice(0, -1).join(" › "), title: parts[parts.length - 1] };
+}
+
+// Chunk previews are raw docs markdown; show them as plain text.
+function plainPreview(text) {
+  return text
+    .replace(/\{ #[\w-]+ \}/g, "")
+    .replace(/(^|\s)#{1,6} /g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/(^|\s)\* /g, "$1")
+    .replace(/\*\*|`|\/\/\/( \w+)?( \|)?/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function sourceCard(hit, quotes) {
+  const card = el("article", "card " + (hit.cited ? "cited" : "uncited"));
+  card.id = "src-" + hit.rank;
+  card.dataset.rank = String(hit.rank);
+
+  const top = el("div", "card-top");
+  top.appendChild(el("div", "rank", String(hit.rank)));
+  const main = el("div", "card-main");
+  const h = splitHeading(hit.heading, hit.url);
+  if (h.crumb) main.appendChild(el("div", "crumb", h.crumb));
+  main.appendChild(el("div", "title", h.title));
+
+  const sub = el("div", "card-sub");
+  const href = safeHttpsUrl(hit.url);
+  const link = el("a", "", hit.url.replace(/^https:\/\//, ""));
+  if (href) {
+    link.href = href;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+  }
+  link.title = hit.url;
+  sub.appendChild(link);
+  sub.appendChild(el("span", "score", "score " + hit.score.toFixed(2)));
+  main.appendChild(sub);
+  top.appendChild(main);
+  top.appendChild(el("span", hit.cited ? "badge" : "badge no", hit.cited ? "Cited" : "Not cited"));
+  card.appendChild(top);
+
+  if (quotes.length) {
+    for (const q of quotes) {
+      const bq = el("blockquote", "quote");
+      renderInline(q.replace(/^\s*\* /gm, "• "), bq);
+      card.appendChild(bq);
+    }
+  } else if (hit.preview) {
+    card.appendChild(el("p", "preview", plainPreview(hit.preview)));
+  }
+
+  card.addEventListener("mouseenter", () => markRank(hit.rank, true));
+  card.addEventListener("mouseleave", () => markRank(hit.rank, false));
+  return card;
+}
+
+function markRank(rank, on) {
+  document.querySelectorAll('[data-rank="' + rank + '"]').forEach((n) => n.classList.toggle("on", on));
+}
+
+function focusCard(rank) {
+  const card = $("src-" + rank);
+  if (!card) return;
+  if (card.tagName === "DETAILS") card.open = true;
+  card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  card.classList.add("flash");
+  requestAnimationFrame(() => requestAnimationFrame(() => card.classList.remove("flash")));
+}
+
+// ---- Result views ----
+
+function banner(kind, iconPath, title, detail) {
+  const b = el("div", "banner " + kind);
+  b.appendChild(icon(iconPath));
+  const t = el("div");
+  t.appendChild(el("b", "", title + " "));
+  if (detail) t.appendChild(el("span", "", detail));
+  b.appendChild(t);
+  return b;
+}
+
+function fmtTokens(usage) {
+  const n = (usage.input_tokens || 0) + (usage.output_tokens || 0);
+  return n.toLocaleString("en-US") + " tokens";
+}
+
+function showAnswer(data) {
+  if (DEV) showDevAnswer(data);
+  else showUserAnswer(data);
+}
+
+function citedInOrder(data) {
+  const seen = [];
+  for (const m of data.text.matchAll(/\[(\d+)\]/g)) {
+    const rank = Number(m[1]);
+    if (!seen.includes(rank) && data.citations.some((c) => c.rank === rank)) seen.push(rank);
+  }
+  for (const c of data.citations) if (!seen.includes(c.rank)) seen.push(c.rank);
+  return seen;
+}
+
+const ICON_CHEV = "M6 9l6 6 6-6";
+
+function userSource(hit, n, quotes) {
+  const d = el("details", "src");
+  d.id = "src-" + hit.rank;
+  d.dataset.rank = String(hit.rank);
+  const s = el("summary");
+  s.appendChild(el("span", "rank", String(n)));
+  const name = el("div", "src-name");
+  const h = splitHeading(hit.heading, hit.url);
+  name.appendChild(el("div", "title", h.title));
+  name.appendChild(el("div", "path", h.crumb ? "FastAPI docs › " + h.crumb.split(" › ")[0] : "FastAPI docs"));
+  s.appendChild(name);
+  const chev = icon(ICON_CHEV);
+  chev.setAttribute("class", "chev");
+  s.appendChild(chev);
+  d.appendChild(s);
+
+  const body = el("div", "src-body");
+  for (const q of quotes) {
+    const bq = el("blockquote", "quote");
+    renderInline(q.replace(/^\s*\* /gm, "• "), bq);
+    body.appendChild(bq);
+  }
+  const href = safeHttpsUrl(hit.url);
+  if (href) {
+    const a = el("a", "open", "Open this page in the FastAPI docs ↗");
+    a.href = href;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    body.appendChild(a);
+  }
+  d.appendChild(body);
+  d.addEventListener("mouseenter", () => markRank(hit.rank, true));
+  d.addEventListener("mouseleave", () => markRank(hit.rank, false));
+  return d;
+}
+
+function showUserAnswer(data) {
+  results.replaceChildren();
+  const answer = el("div", "panel answer");
+
+  if (data.refused) {
+    answer.appendChild(banner("neutral", ICON_STOP, "Sorry, I can't help with that request.", "Try asking a question about FastAPI."));
+    results.appendChild(answer);
+    return;
+  }
+
+  const order = citedInOrder(data);
+  citeNumber = (rank) => order.indexOf(rank) + 1;
+  const body = el("div", "body");
+  renderAnswer(data.text, body);
+  answer.appendChild(body);
+
+  if (order.length) {
+    const srcs = el("div", "srcs");
+    srcs.appendChild(el("h3", "", "Sources"));
+    order.forEach((rank, i) => {
+      const hit = data.hits.find((h) => h.rank === rank);
+      const quotes = data.citations.filter((c) => c.rank === rank).map((c) => c.cited_text);
+      if (hit) srcs.appendChild(userSource(hit, i + 1, quotes));
+    });
+    answer.appendChild(srcs);
+  }
+  results.appendChild(answer);
+}
+
+function showDevAnswer(data) {
+  results.replaceChildren();
+  citeNumber = (rank) => rank;
+
+  const answer = el("div", "panel answer");
+  answer.appendChild(el("h2", "label", "Answer"));
+  if (data.refused) {
+    answer.appendChild(banner("danger", ICON_STOP, "Refused.", "The model declined this request, so no answer was generated."));
+  } else if (!data.grounded) {
+    answer.appendChild(banner("warn", ICON_WARN, "No citations.", "Nothing in this answer is backed by a passage from the docs."));
+  }
+  const body = el("div", "body");
+  renderAnswer(data.text, body);
+  answer.appendChild(body);
+
+  if (data.rewrite) {
+    const s = el("div", "searched");
+    s.appendChild(el("b", "", "Searched the docs for"));
+    s.appendChild(el("p", "", data.rewrite));
+    answer.appendChild(s);
+  }
+
+  const meta = el("div", "meta");
+  meta.appendChild(el("span", "", data.model));
+  meta.appendChild(el("span", "", fmtTokens(data.usage)));
+  if (typeof data.cost_usd === "number") meta.appendChild(el("span", "", "$" + data.cost_usd.toFixed(3)));
+  if (typeof data.latency_s === "number") meta.appendChild(el("span", "", data.latency_s.toFixed(1) + " s"));
+  for (const note of data.notes || []) meta.appendChild(el("span", "note", note));
+  if (data.trace_url) {
+    const a = el("a", "", "Langfuse trace ↗");
+    a.href = data.trace_url;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    meta.appendChild(a);
+  }
+  answer.appendChild(meta);
+
+  const sources = el("aside", "panel sources");
+  const head = el("div", "sources-head");
+  head.appendChild(el("h2", "label", "Sources"));
+  const cited = data.hits.filter((h) => h.cited).length;
+  head.appendChild(el("span", "count", cited + " of " + data.hits.length + " cited"));
+  sources.appendChild(head);
+  const cards = el("div", "cards");
+  for (const hit of data.hits) {
+    const quotes = data.citations.filter((c) => c.rank === hit.rank).map((c) => c.cited_text);
+    cards.appendChild(sourceCard(hit, quotes));
+  }
+  sources.appendChild(cards);
+
+  results.append(answer, sources);
+}
+
+function showError(message) {
+  results.replaceChildren();
+  const p = el("div", "panel answer");
+  if (DEV) {
+    p.appendChild(el("h2", "label", "Answer"));
+    p.appendChild(banner("danger", ICON_STOP, "Couldn't get an answer.", message));
+  } else {
+    p.appendChild(banner("danger", ICON_STOP, "Something went wrong.", "Please try again in a minute."));
+  }
+  results.appendChild(p);
+}
+
+let timer = null;
+function showLoading() {
+  results.replaceChildren();
+  const p = el("div", "panel answer");
+  if (DEV) p.appendChild(el("h2", "label", "Answer"));
+  const row = el("div", "loading");
+  row.appendChild(el("div", "spinner"));
+  const msg = el("span", "", DEV ? "Searching the docs and writing a cited answer…" : "Looking through the FastAPI docs…");
+  const secs = el("span", "hint dev-only", "0 s");
+  row.append(msg, secs);
+  p.appendChild(row);
+  const skel = el("div", "skel");
+  for (const w of ["92%", "78%", "85%", "40%"]) {
+    const i = el("i");
+    i.style.width = w;
+    skel.appendChild(i);
+  }
+  p.appendChild(skel);
+  results.appendChild(p);
+  const start = Date.now();
+  clearInterval(timer);
+  timer = setInterval(() => {
+    if (!secs.isConnected) return clearInterval(timer);
+    secs.textContent = Math.floor((Date.now() - start) / 1000) + " s";
+  }, 250);
+}
+
+function showEmpty() {
+  results.replaceChildren();
+}
+
+// ---- Form ----
+
+const q = $("q");
+function setQuestion(text) {
+  q.value = text;
+  fitQuestion();
+}
+function fitQuestion() {
+  q.style.height = "auto";
+  q.style.height = q.scrollHeight + 2 + "px";
+}
+q.addEventListener("input", fitQuestion);
+for (const ex of EXAMPLES) {
+  const b = el("button", "", ex);
+  b.type = "button";
+  b.addEventListener("click", () => {
+    setQuestion(ex);
+    q.focus();
+  });
+  $("examples").appendChild(b);
+}
+// Enter asks; Shift + Enter adds a new line.
+q.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+    e.preventDefault();
+    $("ask").requestSubmit();
+  }
+});
+
+function setView(view) {
+  DEV = view === "dev";
+  document.body.classList.toggle("dev", DEV);
+}
+
+// ---- Mock wiring (replaced by fetch('/api/ask') in step 4) ----
+
+const FIXTURE = JSON.parse($("fixture").textContent);
+FIXTURE.refused = Object.assign({}, FIXTURE.answered, {
+  text: "I can't help with that request.",
+  grounded: false,
+  refused: true,
+  citations: [],
+  hits: FIXTURE.answered.hits.map((h) => Object.assign({}, h, { cited: false })),
+  stop_reason: "refusal",
+  usage: { input_tokens: 5965, output_tokens: 12 },
+  cost_usd: 0.024,
+  latency_s: 3.4,
+});
+
+function render(state) {
+  clearInterval(timer);
+  if (state === "loading") return showLoading();
+  if (state === "empty") return showEmpty();
+  if (state === "error") return showError("Rate limited or spend cap reached. Try again later.");
+  const data = FIXTURE[state];
+  setQuestion(data.question);
+  showAnswer(data);
+  if (params.get("open") === "1") document.querySelectorAll("details.src").forEach((d) => (d.open = true));
+}
+
+function setTheme(theme) {
+  if (theme === "auto") document.documentElement.removeAttribute("data-theme");
+  else document.documentElement.setAttribute("data-theme", theme);
+}
+
+$("ask").addEventListener("submit", (e) => {
+  e.preventDefault();
+  if (!q.value.trim()) return q.focus();
+  $("go").disabled = true;
+  showLoading();
+  setTimeout(() => {
+    $("go").disabled = false;
+    render($("mock-state").value === "loading" ? "answered" : $("mock-state").value);
+  }, 1600);
+});
+
+const params = new URLSearchParams(location.hash.slice(1));
+const devParam = new URLSearchParams(location.search).get("dev") === "1";
+$("mock-view").value = params.get("view") || (devParam ? "dev" : "user");
+setView($("mock-view").value);
+$("mock-view").addEventListener("change", (e) => {
+  setView(e.target.value);
+  render($("mock-state").value);
+});
+$("mock-state").value = params.get("state") || "answered";
+$("mock-theme").value = params.get("theme") || "auto";
+if (params.get("bar") === "off") $("mockbar").hidden = true;
+$("mock-state").addEventListener("change", (e) => render(e.target.value));
+$("mock-theme").addEventListener("change", (e) => setTheme(e.target.value));
+setTheme($("mock-theme").value);
+render($("mock-state").value);
+</script>
+</body>
+</html>
