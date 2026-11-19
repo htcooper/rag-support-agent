@@ -5,17 +5,20 @@ from typing import Any
 
 import anthropic
 import httpx2
+import openai
 import pytest
 
 from rag_support import __main__ as cli
-from rag_support.errors import describe_api_error
+from rag_support.errors import describe_api_error, http_status_for
 from rag_support.retrieve import Index
 
-# The Anthropic SDK builds its errors from httpx2 requests and responses.
-REQUEST = httpx2.Request("POST", "https://api.anthropic.com/v1/messages")
+# Both SDKs build their errors from httpx2 requests and responses.
+REQUEST = httpx2.Request("POST", "https://api.example/v1")
+
+StatusError = type[anthropic.APIStatusError] | type[openai.APIStatusError]
 
 
-def status_error(cls: type[anthropic.APIStatusError], code: int) -> Exception:
+def status_error(cls: StatusError, code: int) -> Exception:
     response = httpx2.Response(code, request=REQUEST)
     return cls("server said no", response=response, body=None)
 
@@ -48,10 +51,45 @@ def status_error(cls: type[anthropic.APIStatusError], code: int) -> Exception:
             anthropic.APITimeoutError(request=REQUEST),
             "Couldn't reach the Anthropic API. Check the network connection.",
         ),
+        (
+            status_error(openai.AuthenticationError, 401),
+            "OpenAI rejected the API key. Check OPENAI_API_KEY in .env.",
+        ),
+        (
+            status_error(openai.PermissionDeniedError, 403),
+            "The OpenAI key can't use the embedding model: server said no",
+        ),
+        (
+            status_error(openai.RateLimitError, 429),
+            "OpenAI rate limit or quota reached. Try again later.",
+        ),
+        (
+            status_error(openai.InternalServerError, 500),
+            "OpenAI API error 500: server said no",
+        ),
+        (
+            openai.APITimeoutError(request=REQUEST),
+            "Couldn't reach the OpenAI API. Check the network connection.",
+        ),
     ],
 )
 def test_each_api_error_gets_its_message(exc: Exception, expected: str) -> None:
     assert describe_api_error(exc) == expected
+
+
+@pytest.mark.parametrize(
+    ("exc", "status"),
+    [
+        (status_error(anthropic.RateLimitError, 429), 429),
+        (status_error(openai.RateLimitError, 429), 429),
+        (anthropic.APIConnectionError(request=REQUEST), 503),
+        (openai.APIConnectionError(request=REQUEST), 503),
+        (status_error(anthropic.AuthenticationError, 401), 502),
+        (status_error(openai.InternalServerError, 500), 502),
+    ],
+)
+def test_http_status_for_each_kind_of_api_error(exc: Exception, status: int) -> None:
+    assert http_status_for(exc) == status
 
 
 def test_other_errors_get_no_message() -> None:

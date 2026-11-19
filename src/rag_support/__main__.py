@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 
 from rag_support.answer import DEFAULT_EFFORT, answer_question
 from rag_support.embeddings import OpenAIEmbedder
-from rag_support.errors import describe_api_error
+from rag_support.errors import API_ERRORS, describe_api_error
 from rag_support.index import build_index
 from rag_support.ingest import pin, run_ingest
 from rag_support.retrieve import Index, Retriever
@@ -76,7 +76,7 @@ def cmd_ask(args: argparse.Namespace) -> None:
             rewrite=args.rewrite,
             strict=args.strict,
         )
-    except anthropic.APIError as e:
+    except API_ERRORS as e:
         message = describe_api_error(e)
         if message is None:
             raise
