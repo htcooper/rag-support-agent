@@ -110,10 +110,27 @@ python -m venv .venv
 .venv/Scripts/python -I -m rag_support ingest   # download, verify, sanitize, chunk
 .venv/Scripts/python -I -m rag_support index    # embed 999 chunks, about $0.01
 .venv/Scripts/python -I -m rag_support ask "How do I enable CORS?"   # --no-rewrite / --no-strict for the baseline
-.venv/Scripts/python -m pytest                  # 173 tests, no API calls
+.venv/Scripts/python -m pytest                  # 210 tests, no API calls
 ```
 
 The eval runner (`evals/run.py`) costs about $3.40 to $3.70 per variant at two runs per case and refuses to run until its code is approved with `--approve-harness`, so grading can't change unnoticed between runs.
+
+## Web UI
+
+A local page for asking questions, served by FastAPI on 127.0.0.1 only, since every question is billed to your API keys.
+
+```
+.venv/Scripts/pip install -e ".[ui]"            # included in ".[dev]"
+.venv/Scripts/python -I -m rag_support ui       # http://127.0.0.1:8000
+```
+
+The default view shows the answer and the doc pages it cites. Each source expands to the quoted passages and a link to the page.
+
+![End-user view: a cited answer to the CORS question, with its first source expanded](docs/img/ui-answer.png)
+
+`/?dev=1` adds the debugging details: the rewrite and strict-prompt toggles, all 5 retrieved chunks with their scores and whether each was cited, the rewritten query, and the model, tokens, cost, latency, and trace link. The example below is the `login-form` retrieval miss from the case study: all 5 chunks come from the OAuth2 tutorial page and none from the form-data page.
+
+![Developer view of the login-form question: every retrieved chunk comes from the OAuth2 tutorial](docs/img/ui-developer.png)
 
 ## Attribution
 
