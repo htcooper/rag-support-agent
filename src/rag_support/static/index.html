@@ -273,6 +273,17 @@ button.primary:disabled { opacity: 0.55; cursor: default; }
 .quote .code { margin: 6px 0; }
 .quote .code pre { font-size: 12px; padding: 8px 10px; }
 .quote code { background: var(--code-bg); padding: 0 4px; border-radius: 3px; }
+.quote.clamped { max-height: 200px; overflow: hidden; position: relative; }
+.quote.clamped::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 56px;
+  background: linear-gradient(to bottom, transparent, var(--surface));
+}
+.card.uncited .quote.clamped::after { background: linear-gradient(to bottom, transparent, var(--surface-2)); }
+.quote-wrap .more {
+  appearance: none; border: 0; background: transparent; cursor: pointer;
+  color: var(--accent); font: inherit; font-size: 12.5px; padding: 4px 0 0 13px;
+}
+.quote-wrap .more:hover { text-decoration: underline; }
 .preview {
   margin: 8px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--muted);
   display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
@@ -566,6 +577,34 @@ function cleanQuote(text) {
     .trim();
 }
 
+// Claude can cite the same passage, or part of it, several times. Keep each
+// passage once: drop exact repeats and quotes contained in a longer one.
+function distinctQuotes(quotes) {
+  const unique = [...new Set(quotes)];
+  return unique.filter((q) => !unique.some((o) => o !== q && o.includes(q)));
+}
+
+// A quote over about 10 lines starts collapsed, with a toggle to expand it.
+const LONG_QUOTE_LINES = 10;
+function quoteBlock(q) {
+  const text = cleanQuote(q);
+  const bq = el("blockquote", "quote");
+  renderAnswer(text, bq);
+  if (text.split("\n").length <= LONG_QUOTE_LINES) return bq;
+  bq.classList.add("clamped");
+  const wrap = el("div", "quote-wrap");
+  const toggle = el("button", "more", "Show full passage");
+  toggle.type = "button";
+  toggle.setAttribute("aria-expanded", "false");
+  toggle.addEventListener("click", () => {
+    const open = bq.classList.toggle("clamped") === false;
+    toggle.textContent = open ? "Show less" : "Show full passage";
+    toggle.setAttribute("aria-expanded", String(open));
+  });
+  wrap.append(bq, toggle);
+  return wrap;
+}
+
 // Chunk previews are raw docs markdown; show them as plain text.
 function plainPreview(text) {
   return text
@@ -607,11 +646,7 @@ function sourceCard(hit, quotes) {
   card.appendChild(top);
 
   if (quotes.length) {
-    for (const q of quotes) {
-      const bq = el("blockquote", "quote");
-      renderAnswer(cleanQuote(q), bq);
-      card.appendChild(bq);
-    }
+    for (const q of distinctQuotes(quotes)) card.appendChild(quoteBlock(q));
   } else if (hit.preview) {
     card.appendChild(el("p", "preview", plainPreview(hit.preview)));
   }
@@ -685,11 +720,7 @@ function userSource(hit, n, quotes) {
   d.appendChild(s);
 
   const body = el("div", "src-body");
-  for (const q of quotes) {
-    const bq = el("blockquote", "quote");
-    renderAnswer(cleanQuote(q), bq);
-    body.appendChild(bq);
-  }
+  for (const q of distinctQuotes(quotes)) body.appendChild(quoteBlock(q));
   const href = safeHttpsUrl(hit.url);
   if (href) {
     const a = el("a", "open", "Open this page in the FastAPI docs ↗");
