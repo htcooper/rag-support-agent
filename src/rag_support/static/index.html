@@ -265,8 +265,13 @@ button.primary:disabled { opacity: 0.55; cursor: default; }
 .badge.no { background: transparent; color: var(--faint); border: 1px solid var(--border); }
 .quote {
   margin: 9px 0 0; padding: 2px 0 2px 10px; border-left: 3px solid var(--cited);
-  font-size: 13px; line-height: 1.5; color: var(--text); white-space: pre-line;
+  font-size: 13px; line-height: 1.5; color: var(--text);
 }
+.quote p, .quote ul, .quote ol { margin: 0 0 6px; }
+.quote > :last-child { margin-bottom: 0; }
+.quote ul, .quote ol { padding-left: 18px; }
+.quote .code { margin: 6px 0; }
+.quote .code pre { font-size: 12px; padding: 8px 10px; }
 .quote code { background: var(--code-bg); padding: 0 4px; border-radius: 3px; }
 .preview {
   margin: 8px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--muted);
@@ -290,17 +295,6 @@ button.primary:disabled { opacity: 0.55; cursor: default; }
 @media (prefers-reduced-motion: reduce) {
   .spinner, .skel i { animation: none; }
 }
-.empty { color: var(--faint); font-size: 14px; }
-
-/* Mock-only state bar: removed when the page is wired to /api/ask */
-.mockbar {
-  position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%);
-  display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; justify-content: center;
-  max-width: calc(100vw - 24px);
-  background: var(--text); color: var(--bg); border-radius: 12px;
-  padding: 7px 10px; font-size: 12.5px; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
-}
-.mockbar[hidden] { display: none; }
 
 /* ---- View switch: end-user view by default, developer view with ?dev=1 ---- */
 body:not(.dev) .dev-only { display: none !important; }
@@ -332,11 +326,6 @@ body:not(.dev) .ask-row { flex-wrap: nowrap; }
 .src-body a.open { display: inline-block; margin-top: 10px; font-size: 13px; text-decoration: none; }
 .src-body a.open:hover { text-decoration: underline; }
 .banner.neutral { background: var(--surface-2); color: var(--muted); border: 1px solid var(--border); }
-.mockbar b { opacity: 0.6; font-weight: 600; }
-.mockbar select {
-  font: inherit; font-size: 12.5px; border-radius: 6px; padding: 2px 4px;
-  border: 0; background: var(--bg); color: var(--text);
-}
 </style>
 </head>
 <body>
@@ -368,254 +357,6 @@ body:not(.dev) .ask-row { flex-wrap: nowrap; }
   <section class="results" id="results" aria-live="polite"></section>
 </div>
 
-<div class="mockbar" id="mockbar">
-  <b>MOCK</b>
-  <label>View
-    <select id="mock-view">
-      <option value="user">End user</option>
-      <option value="dev">Developer</option>
-    </select>
-  </label>
-  <label>State
-    <select id="mock-state">
-      <option value="answered">Answered</option>
-      <option value="declined_cited">Declined, cites a page</option>
-      <option value="not_covered">Not covered (no citations)</option>
-      <option value="refused">Refused</option>
-      <option value="error">Error</option>
-      <option value="loading">Loading</option>
-      <option value="empty">Empty (first visit)</option>
-    </select>
-  </label>
-  <label>Theme
-    <select id="mock-theme">
-      <option value="auto">Auto</option>
-      <option value="light">Light</option>
-      <option value="dark">Dark</option>
-    </select>
-  </label>
-</div>
-
-<script type="application/json" id="fixture">{
- "answered": {
-  "question": "My React app on localhost:3000 gets blocked when it calls my FastAPI backend. How do I fix it?",
-  "text": "This is a CORS issue: your frontend and backend are on different origins, so you need to add `CORSMiddleware` and allow `http://localhost:3000`.\n\n**Why it happens:** An origin is the combination of protocol (`http`, `https`), domain (`myapp.com`, `localhost`, `localhost.tiangolo.com`), and port (`80`, `443`, `8080`).[2] Your React app on port 3000 is a different origin from your backend, so the backend must have a list of \"allowed origins\".[2]\n\n**Fix:** The steps are to import `CORSMiddleware`, create a list of allowed origins (as strings), and add it as a \"middleware\" to your **FastAPI** application.[1]\n\n```python\nfrom fastapi import FastAPI\nfrom fastapi.middleware.cors import CORSMiddleware\n\napp = FastAPI()\n\norigins = [\n    \"http://localhost:3000\",\n]\n\napp.add_middleware(\n    CORSMiddleware,\n    allow_origins=origins,\n    allow_credentials=True,\n    allow_methods=[\"*\"],\n    allow_headers=[\"*\"],\n)\n```\n\n**Notes:**\n- List the origin explicitly rather than using `\"*\"`. A wildcard will only allow certain types of communication, excluding everything that involves credentials: Cookies, Authorization headers like those used with Bearer Tokens, etc.[1]\n- The defaults are strict. `allow_methods` - A list of HTTP methods that should be allowed for cross-origin requests. Defaults to `['GET']`.[1] If you send `POST`, `PUT`, or custom headers, you need to set `allow_methods` and `allow_headers` as shown above.\n- If you deploy the frontend somewhere else later, add that exact origin to the list too. The protocol and port must match.",
-  "grounded": true,
-  "refused": false,
-  "citations": [
-   {
-    "rank": 2,
-    "heading": "CORS (Cross-Origin Resource Sharing)",
-    "url": "https://fastapi.tiangolo.com/tutorial/cors/",
-    "cited_text": "An origin is the combination of protocol (`http`, `https`), domain (`myapp.com`, `localhost`, `localhost.tiangolo.com`), and port (`80`, `443`, `8080`)."
-   },
-   {
-    "rank": 2,
-    "heading": "CORS (Cross-Origin Resource Sharing)",
-    "url": "https://fastapi.tiangolo.com/tutorial/cors/",
-    "cited_text": "To achieve this, the `:80`-backend must have a list of \"allowed origins\"."
-   },
-   {
-    "rank": 1,
-    "heading": "CORS (Cross-Origin Resource Sharing) > Wildcards",
-    "url": "https://fastapi.tiangolo.com/tutorial/cors/",
-    "cited_text": "* Import `CORSMiddleware`.\n* Create a list of allowed origins (as strings).\n* Add it as a \"middleware\" to your **FastAPI** application."
-   },
-   {
-    "rank": 1,
-    "heading": "CORS (Cross-Origin Resource Sharing) > Wildcards",
-    "url": "https://fastapi.tiangolo.com/tutorial/cors/",
-    "cited_text": "But that will only allow certain types of communication, excluding everything that involves credentials: Cookies, Authorization headers like those used with Bearer Tokens, etc."
-   },
-   {
-    "rank": 1,
-    "heading": "CORS (Cross-Origin Resource Sharing) > Wildcards",
-    "url": "https://fastapi.tiangolo.com/tutorial/cors/",
-    "cited_text": "`allow_methods` - A list of HTTP methods that should be allowed for cross-origin requests. Defaults to `['GET']`."
-   }
-  ],
-  "hits": [
-   {
-    "rank": 1,
-    "heading": "CORS (Cross-Origin Resource Sharing) > Wildcards",
-    "url": "https://fastapi.tiangolo.com/tutorial/cors/",
-    "score": 0.5686,
-    "cited": true,
-    "preview": "## Wildcards { #wildcards } It's also possible to declare the list as `\"*\"` (a \"wildcard\") to say that all are allowed. But that will only allow certain types of communication, excluding everything that involves credentials: Cookies, Authorization headers like those used with Bearer Tokens, etc. So,"
-   },
-   {
-    "rank": 2,
-    "heading": "CORS (Cross-Origin Resource Sharing)",
-    "url": "https://fastapi.tiangolo.com/tutorial/cors/",
-    "score": 0.5234,
-    "cited": true,
-    "preview": "# CORS (Cross-Origin Resource Sharing) { #cors-cross-origin-resource-sharing } CORS or \"Cross-Origin Resource Sharing\" refers to the situations when a frontend running in a browser has JavaScript code that communicates with a backend, and the backend is in a different \"origin\" than the frontend. ## "
-   },
-   {
-    "rank": 3,
-    "heading": "CORS (Cross-Origin Resource Sharing) > Use `CORSMiddleware` > CORS preflight requests",
-    "url": "https://fastapi.tiangolo.com/tutorial/cors/",
-    "score": 0.488,
-    "cited": false,
-    "preview": "### CORS preflight requests { #cors-preflight-requests } These are any `OPTIONS` request with `Origin` and `Access-Control-Request-Method` headers. In this case the middleware will intercept the incoming request and respond with appropriate CORS headers, and either a `200` or `400` response for info"
-   },
-   {
-    "rank": 4,
-    "heading": "Frontend > Client-Side Routing",
-    "url": "https://fastapi.tiangolo.com/tutorial/frontend/",
-    "score": 0.4819,
-    "cited": false,
-    "preview": "## Client-Side Routing { #client-side-routing } Many frontend apps, including **single-page apps** (SPAs), use client-side routing. A path like `/dashboard/settings` might not be a real file but the framework would take care of handling it. So, if accessing that URL directly (instead of navigating t"
-   },
-   {
-    "rank": 5,
-    "heading": "Strict Content-Type Checking",
-    "url": "https://fastapi.tiangolo.com/advanced/strict-content-type/",
-    "score": 0.4602,
-    "cited": false,
-    "preview": "# Strict Content-Type Checking { #strict-content-type-checking } By default, **FastAPI** uses strict `Content-Type` header checking for JSON request bodies, this means that JSON requests **must** include a valid `Content-Type` header (e.g. `application/json`) in order for the body to be parsed as JS"
-   }
-  ],
-  "rewrite": "CORS middleware CORSMiddleware allow_origins allow_methods allow_headers cross-origin resource sharing",
-  "model": "claude-opus-5-5",
-  "stop_reason": "end_turn",
-  "usage": {
-   "input_tokens": 5965,
-   "output_tokens": 766
-  },
-  "cost_usd": 0.0392,
-  "latency_s": 9.0,
-  "notes": [],
-  "trace_url": "#mock-trace"
- },
- "declined_cited": {
-  "question": "How do I configure the Django admin site?",
-  "text": "I couldn't find anything about configuring the Django admin site in the FastAPI docs. The only Django-related material I found is a comparison page, which says Django REST Framework was created to be a flexible toolkit for building Web APIs using Django underneath, to improve its API capabilities.[1] It doesn't cover the Django admin.\n\nSince the admin site is part of Django rather than FastAPI, look in Django's own documentation for \"admin site\" configuration. If you meant something FastAPI-specific, such as adding authentication to your API, the FastAPI security tutorial (https://fastapi.tiangolo.com/tutorial/security/) may be a better place to start.",
-  "grounded": true,
-  "refused": false,
-  "citations": [
-   {
-    "rank": 1,
-    "heading": "Alternatives, Inspiration and Comparisons > Previous tools > Django REST Framework",
-    "url": "https://fastapi.tiangolo.com/alternatives/",
-    "cited_text": "Django REST Framework was created to be a flexible toolkit for building Web APIs using Django underneath, to improve its API capabilities."
-   }
-  ],
-  "hits": [
-   {
-    "rank": 1,
-    "heading": "Alternatives, Inspiration and Comparisons > Previous tools > Django REST Framework",
-    "url": "https://fastapi.tiangolo.com/alternatives/",
-    "score": 0.5171,
-    "cited": true,
-    "preview": "### Django REST Framework { #django-rest-framework } Django REST Framework was created to be a flexible toolkit for building Web APIs using Django underneath, to improve its API capabilities. It is used by many companies including Mozilla, Red Hat and Eventbrite. It was one of the first examples of "
-   },
-   {
-    "rank": 2,
-    "heading": "Frontend > Client-Side Routing",
-    "url": "https://fastapi.tiangolo.com/tutorial/frontend/",
-    "score": 0.5107,
-    "cited": false,
-    "preview": "## Client-Side Routing { #client-side-routing } Many frontend apps, including **single-page apps** (SPAs), use client-side routing. A path like `/dashboard/settings` might not be a real file but the framework would take care of handling it. So, if accessing that URL directly (instead of navigating t"
-   },
-   {
-    "rank": 3,
-    "heading": "",
-    "url": "https://fastapi.tiangolo.com/",
-    "score": 0.5001,
-    "cited": false,
-    "preview": "--- include_yaml: sponsors: data/sponsors.yml --- # FastAPI { #fastapi } FastAPI framework, high performance, easy to learn, fast to code, ready for production --- **Documentation**: [https://fastapi.tiangolo.com](https://fastapi.tiangolo.com) **Source Code**: [https://github.com/fastapi/fastapi](ht"
-   },
-   {
-    "rank": 4,
-    "heading": "Security > **FastAPI** utilities",
-    "url": "https://fastapi.tiangolo.com/tutorial/security/",
-    "score": 0.5,
-    "cited": false,
-    "preview": "## **FastAPI** utilities { #fastapi-utilities } FastAPI provides several tools for each of these security schemes in the `fastapi.security` module that simplify using these security mechanisms. In the next chapters you will see how to add security to your API using those tools provided by **FastAPI*"
-   },
-   {
-    "rank": 5,
-    "heading": "Features > FastAPI features > Security and authentication",
-    "url": "https://fastapi.tiangolo.com/features/",
-    "score": 0.4994,
-    "cited": false,
-    "preview": "### Security and authentication { #security-and-authentication } Security and authentication integrated. Without any compromise with databases or data models. All the security schemes defined in OpenAPI, including: * HTTP Basic. * **OAuth2** (also with **JWT tokens**). Check the tutorial on [OAuth2 "
-   }
-  ],
-  "rewrite": "FastAPI documentation search for Django admin configuration: the question concerns a different framework, so no FastAPI features match. Closest analogue: FastAPI admin panel integration, third-party admin dashboards, middleware, templates, static files, mounting sub-applications",
-  "model": "claude-opus-5-5",
-  "stop_reason": "end_turn",
-  "usage": {
-   "input_tokens": 4890,
-   "output_tokens": 346
-  },
-  "cost_usd": 0.0265,
-  "latency_s": 5.6,
-  "notes": [],
-  "trace_url": "#mock-trace"
- },
- "not_covered": {
-  "question": "What's the capital of Australia?",
-  "text": "I couldn't find that in the FastAPI docs. The documents I have only cover FastAPI topics, such as path parameters, Pydantic and Starlette, security utilities, and the FastAPI CLI. They don't include any geography information.\n\nI can only answer FastAPI questions from the official docs. If you have one, for example about path parameters, validation, security, or the `fastapi` CLI, I'm happy to help.",
-  "grounded": false,
-  "refused": false,
-  "citations": [],
-  "hits": [
-   {
-    "rank": 1,
-    "heading": "Path Parameters > Recap",
-    "url": "https://fastapi.tiangolo.com/tutorial/path-params/",
-    "score": 0.3304,
-    "cited": false,
-    "preview": "## Recap { #recap } With **FastAPI**, by using short, intuitive and standard Python type declarations, you get: * Editor support: error checks, autocompletion, etc. * Data \"parsing\" * Data validation * API annotation and automatic documentation And you only have to declare them once. That's probably"
-   },
-   {
-    "rank": 2,
-    "heading": "Alternatives, Inspiration and Comparisons > Used by **FastAPI**",
-    "url": "https://fastapi.tiangolo.com/alternatives/",
-    "score": 0.3273,
-    "cited": false,
-    "preview": "## Used by **FastAPI** { #used-by-fastapi } ### Pydantic { #pydantic } Pydantic is a library to define data validation, serialization and documentation (using JSON Schema) based on Python type hints. That makes it extremely intuitive. It is comparable to Marshmallow. Although it's faster than Marshm"
-   },
-   {
-    "rank": 3,
-    "heading": "Security > **FastAPI** utilities",
-    "url": "https://fastapi.tiangolo.com/tutorial/security/",
-    "score": 0.3269,
-    "cited": false,
-    "preview": "## **FastAPI** utilities { #fastapi-utilities } FastAPI provides several tools for each of these security schemes in the `fastapi.security` module that simplify using these security mechanisms. In the next chapters you will see how to add security to your API using those tools provided by **FastAPI*"
-   },
-   {
-    "rank": 4,
-    "heading": "About",
-    "url": "https://fastapi.tiangolo.com/about/",
-    "score": 0.326,
-    "cited": false,
-    "preview": "# About { #about } About FastAPI, its design, inspiration and more. 🤓"
-   },
-   {
-    "rank": 5,
-    "heading": "Release Notes > 0.111.0 (2024-05-03)",
-    "url": "https://fastapi.tiangolo.com/release-notes/",
-    "score": 0.3188,
-    "cited": false,
-    "preview": "## 0.111.0 (2024-05-03) ### Features * ✨ Add FastAPI CLI, the new `fastapi` command. PR [#11522](https://github.com/tiangolo/fastapi/pull/11522) by [@tiangolo](https://github.com/tiangolo). * New docs: [FastAPI CLI](https://fastapi.tiangolo.com/fastapi-cli/). Try it out with: ```console $ pip instal"
-   }
-  ],
-  "rewrite": "FastAPI documentation search: no direct match; closest topics would be none for geography trivia",
-  "model": "claude-opus-5-5",
-  "stop_reason": "end_turn",
-  "usage": {
-   "input_tokens": 4069,
-   "output_tokens": 135
-  },
-  "cost_usd": 0.019,
-  "latency_s": 3.0,
-  "notes": [],
-  "trace_url": "#mock-trace"
- }
-}</script>
 <script>
 "use strict";
 
@@ -669,7 +410,7 @@ function safeHttpsUrl(raw) {
   }
 }
 
-const INLINE = /(`[^`\n]+`)|(\*\*[^*\n]+\*\*)|\[(\d+)\]|(https:\/\/[^\s<>"'`)\]]+)/g;
+const INLINE = /(`[^`\n]+`)|(\*\*[^*\n]+\*\*)|\[(\d+)\]|(https:\/\/[^\s<>"'`)\]]+)|\*([^*\s][^*\n]*?)\*|\[([^\]\n]+)\]\((https:\/\/[^)\s]+)\)/g;
 
 function renderInline(text, parent) {
   let last = 0;
@@ -684,6 +425,22 @@ function renderInline(text, parent) {
       parent.appendChild(strong);
     } else if (m[3]) {
       parent.appendChild(citeLink(Number(m[3])));
+    } else if (m[6]) {
+      // A Markdown link: https only, like bare URLs.
+      const href = safeHttpsUrl(m[7]);
+      if (href) {
+        const a = el("a", "link", m[6]);
+        a.href = href;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        parent.appendChild(a);
+      } else {
+        parent.appendChild(document.createTextNode(m[6]));
+      }
+    } else if (m[5]) {
+      const em = el("em");
+      renderInline(m[5], em);
+      parent.appendChild(em);
     } else if (m[4]) {
       const url = m[4].replace(/[.,;:!?]+$/, "");
       consumed = url;
@@ -798,6 +555,17 @@ function splitHeading(heading, url) {
   return { crumb: parts.slice(0, -1).join(" › "), title: parts[parts.length - 1] };
 }
 
+// Cited passages are raw docs markdown: drop heading anchors and the docs'
+// "///" admonition markers, and show headings as bold lines.
+function cleanQuote(text) {
+  return text
+    .replace(/ ?\{ #[\w-]+ \}/g, "")
+    .replace(/^\/\/\/.*$/gm, "")
+    .replace(/^#{1,6} +(.+)$/gm, "**$1**")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 // Chunk previews are raw docs markdown; show them as plain text.
 function plainPreview(text) {
   return text
@@ -841,7 +609,7 @@ function sourceCard(hit, quotes) {
   if (quotes.length) {
     for (const q of quotes) {
       const bq = el("blockquote", "quote");
-      renderInline(q.replace(/^\s*\* /gm, "• "), bq);
+      renderAnswer(cleanQuote(q), bq);
       card.appendChild(bq);
     }
   } else if (hit.preview) {
@@ -919,7 +687,7 @@ function userSource(hit, n, quotes) {
   const body = el("div", "src-body");
   for (const q of quotes) {
     const bq = el("blockquote", "quote");
-    renderInline(q.replace(/^\s*\* /gm, "• "), bq);
+    renderAnswer(cleanQuote(q), bq);
     body.appendChild(bq);
   }
   const href = safeHttpsUrl(hit.url);
@@ -1057,10 +825,6 @@ function showLoading() {
   }, 250);
 }
 
-function showEmpty() {
-  results.replaceChildren();
-}
-
 // ---- Form ----
 
 const q = $("q");
@@ -1095,63 +859,50 @@ function setView(view) {
   document.body.classList.toggle("dev", DEV);
 }
 
-// ---- Mock wiring (replaced by fetch('/api/ask') in step 4) ----
+// ---- Asking ----
 
-const FIXTURE = JSON.parse($("fixture").textContent);
-FIXTURE.refused = Object.assign({}, FIXTURE.answered, {
-  text: "I can't help with that request.",
-  grounded: false,
-  refused: true,
-  citations: [],
-  hits: FIXTURE.answered.hits.map((h) => Object.assign({}, h, { cited: false })),
-  stop_reason: "refusal",
-  usage: { input_tokens: 5965, output_tokens: 12 },
-  cost_usd: 0.024,
-  latency_s: 3.4,
-});
+setView(new URLSearchParams(location.search).get("dev") === "1" ? "dev" : "user");
 
-function render(state) {
-  clearInterval(timer);
-  if (state === "loading") return showLoading();
-  if (state === "empty") return showEmpty();
-  if (state === "error") return showError("Rate limited or spend cap reached. Try again later.");
-  const data = FIXTURE[state];
-  setQuestion(data.question);
-  showAnswer(data);
-  if (params.get("open") === "1") document.querySelectorAll("details.src").forEach((d) => (d.open = true));
+function errorMessage(status, data) {
+  if (data && typeof data.detail === "string") return data.detail;
+  if (status === 422) return "The question must be 1 to 1,000 characters.";
+  return "Server error " + status + ". The terminal running the UI has the details.";
 }
 
-function setTheme(theme) {
-  if (theme === "auto") document.documentElement.removeAttribute("data-theme");
-  else document.documentElement.setAttribute("data-theme", theme);
+let busy = false;
+async function ask(question) {
+  if (busy) return;
+  busy = true;
+  $("go").disabled = true;
+  showLoading();
+  try {
+    const res = await fetch("/api/ask", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        question,
+        rewrite: $("rewrite").checked,
+        strict: $("strict").checked,
+      }),
+    });
+    const data = await res.json().catch(() => null);
+    if (res.ok && data) showAnswer(data);
+    else showError(errorMessage(res.status, data));
+  } catch {
+    showError("Couldn't reach the local server. Is `python -m rag_support ui` still running?");
+  } finally {
+    clearInterval(timer);
+    busy = false;
+    $("go").disabled = false;
+  }
 }
 
 $("ask").addEventListener("submit", (e) => {
   e.preventDefault();
-  if (!q.value.trim()) return q.focus();
-  $("go").disabled = true;
-  showLoading();
-  setTimeout(() => {
-    $("go").disabled = false;
-    render($("mock-state").value === "loading" ? "answered" : $("mock-state").value);
-  }, 1600);
+  const question = q.value.trim();
+  if (!question) return q.focus();
+  ask(question);
 });
-
-const params = new URLSearchParams(location.hash.slice(1));
-const devParam = new URLSearchParams(location.search).get("dev") === "1";
-$("mock-view").value = params.get("view") || (devParam ? "dev" : "user");
-setView($("mock-view").value);
-$("mock-view").addEventListener("change", (e) => {
-  setView(e.target.value);
-  render($("mock-state").value);
-});
-$("mock-state").value = params.get("state") || "answered";
-$("mock-theme").value = params.get("theme") || "auto";
-if (params.get("bar") === "off") $("mockbar").hidden = true;
-$("mock-state").addEventListener("change", (e) => render(e.target.value));
-$("mock-theme").addEventListener("change", (e) => setTheme(e.target.value));
-setTheme($("mock-theme").value);
-render($("mock-state").value);
 </script>
 </body>
 </html>

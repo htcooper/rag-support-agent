@@ -110,6 +110,24 @@ def cmd_ask(args: argparse.Namespace) -> None:
         print(f"{label}: {answer.trace_url}")
 
 
+def cmd_ui(args: argparse.Namespace) -> None:
+    try:
+        import uvicorn
+
+        from rag_support.web import create_app
+    except ImportError:
+        sys.exit('The web UI needs the ui extra: pip install -e ".[ui]"')
+    import anthropic
+
+    index = Index.load(DATA_DIR)
+    retriever = Retriever(index, OpenAIEmbedder(model=index.info["model"]))
+    app = create_app(retriever, anthropic.Anthropic(), make_tracer)
+    url = f"http://127.0.0.1:{args.port}"
+    print(f"Support agent: {url}   developer view: {url}/?dev=1")
+    # Localhost only: every question is billed to this machine's API keys.
+    uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="warning")
+
+
 def main(argv: list[str] | None = None) -> int:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
@@ -158,6 +176,10 @@ def main(argv: list[str] | None = None) -> int:
         help="forbid details the retrieved docs don't state",
     )
     p_ask.set_defaults(func=cmd_ask)
+
+    p_ui = sub.add_parser("ui", help="serve the web UI on 127.0.0.1")
+    p_ui.add_argument("--port", type=int, default=8000)
+    p_ui.set_defaults(func=cmd_ui)
 
     args = parser.parse_args(argv)
     args.func(args)
