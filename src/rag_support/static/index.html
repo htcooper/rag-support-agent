@@ -830,13 +830,15 @@ function showError(message) {
 }
 
 let timer = null;
+let loadingMsg = null;
 function showLoading() {
   results.replaceChildren();
   const p = el("div", "panel answer");
   if (DEV) p.appendChild(el("h2", "label", "Answer"));
   const row = el("div", "loading");
   row.appendChild(el("div", "spinner"));
-  const msg = el("span", "", DEV ? "Searching the docs and writing a cited answer…" : "Looking through the FastAPI docs…");
+  const msg = el("span", "", DEV ? "Searching the docs…" : "Looking through the FastAPI docs…");
+  loadingMsg = msg;
   const secs = el("span", "hint dev-only", "0 s");
   row.append(msg, secs);
   p.appendChild(row);
@@ -900,6 +902,59 @@ function errorMessage(status, data) {
   return "Server error " + status + ". The terminal running the UI has the details.";
 }
 
+// ---- Streaming ----
+// The server sends the answer as it is written: text snapshots, already
+// link-filtered, each replacing the last; then the validated answer, which
+// replaces the draft and adds citations and sources.
+
+function showThinking() {
+  if (loadingMsg && loadingMsg.isConnected) {
+    loadingMsg.textContent = DEV ? "Writing a cited answer…" : "Writing the answer…";
+  }
+}
+
+function showDraft(text) {
+  results.replaceChildren();
+  const answer = el("div", "panel answer");
+  if (DEV) answer.appendChild(el("h2", "label", "Answer"));
+  const body = el("div", "body");
+  // Close an unfinished code block so it renders as code while it streams.
+  const fences = (text.match(/^\s*```/gm) || []).length;
+  renderAnswer(fences % 2 ? text + "\n```" : text, body);
+  answer.appendChild(body);
+  const row = el("div", "loading");
+  row.appendChild(el("div", "spinner"));
+  row.appendChild(el("span", "", "Writing…"));
+  answer.appendChild(row);
+  results.appendChild(answer);
+}
+
+// Reads server-sent events; calls onEvent with each parsed event.
+async function readEvents(res, onEvent) {
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) return;
+    buf += decoder.decode(value, { stream: true });
+    let cut;
+    while ((cut = buf.indexOf("\n\n")) >= 0) {
+      const frame = buf.slice(0, cut);
+      buf = buf.slice(cut + 2);
+      const data = frame
+        .split("\n")
+        .filter((l) => l.startsWith("data: "))
+        .map((l) => l.slice(6))
+        .join("\n");
+      if (data && onEvent(JSON.parse(data)) === false) {
+        reader.cancel().catch(() => {});
+        return;
+      }
+    }
+  }
+}
+
 let busy = false;
 async function ask(question) {
   if (busy) return;
@@ -907,7 +962,7 @@ async function ask(question) {
   $("go").disabled = true;
   showLoading();
   try {
-    const res = await fetch("/api/ask", {
+    const res = await fetch("/api/ask/stream", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -916,9 +971,26 @@ async function ask(question) {
         strict: $("strict").checked,
       }),
     });
-    const data = await res.json().catch(() => null);
-    if (res.ok && data) showAnswer(data);
-    else showError(errorMessage(res.status, data));
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      showError(errorMessage(res.status, data));
+      return;
+    }
+    let finished = false;
+    await readEvents(res, (event) => {
+      if (event.type === "status" && event.stage === "thinking") showThinking();
+      else if (event.type === "text") showDraft(event.text);
+      else if (event.type === "answer") {
+        showAnswer(event.answer);
+        finished = true;
+        return false; // the trace upload that follows isn't worth waiting for
+      } else if (event.type === "error") {
+        showError(errorMessage(event.status, event));
+        finished = true;
+        return false;
+      }
+    });
+    if (!finished) showError("The answer stopped before it finished. Try again.");
   } catch {
     showError("Couldn't reach the local server. Is `python -m rag_support ui` still running?");
   } finally {

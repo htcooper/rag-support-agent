@@ -1,19 +1,25 @@
 """Local web UI: one page and one endpoint around answer_question.
 
 Run it with ``python -I -m rag_support ui``, which binds to 127.0.0.1 only.
-The endpoint returns everything the developer view shows; the page decides
-what the end-user view hides.
+The endpoints return everything the developer view shows; the page decides
+what the end-user view hides. /api/ask returns one JSON answer; /api/ask/stream
+sends the same answer as server-sent events, with filtered text snapshots first.
+Traces are sent to Langfuse after the answer, off the user's wait.
 """
 
 from __future__ import annotations
 
+import json
+import logging
+import queue
+import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from importlib.resources import files
 from typing import Annotated, Any
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi import BackgroundTasks, FastAPI, HTTPException
+from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel, StringConstraints
 
 # _hit_summary stays private: answer.py is fingerprinted by the eval harness gate,
@@ -22,7 +28,10 @@ from rag_support.answer import Answer, answer_question
 from rag_support.answer import _hit_summary as hit_summary
 from rag_support.errors import API_ERRORS, describe_api_error, http_status_for
 from rag_support.retrieve import SupportsRetrieval
+from rag_support.stream import FilteredText, StreamingClient
 from rag_support.tracing import Tracer, cost_details
+
+logger = logging.getLogger(__name__)
 
 # Caps the cost of a single request: a question is a few hundred tokens at most.
 MAX_QUESTION_CHARS = 1000
@@ -96,6 +105,10 @@ def answer_payload(answer: Answer, latency_s: float) -> dict[str, Any]:
     }
 
 
+def sse(event: dict[str, Any]) -> str:
+    return f"data: {json.dumps(event)}\n\n"
+
+
 def create_app(
     retriever: SupportsRetrieval,
     client: Any,
@@ -112,7 +125,7 @@ def create_app(
 
     # A plain def, so FastAPI runs the blocking pipeline in its threadpool.
     @app.post("/api/ask")
-    def ask(request: AskRequest) -> dict[str, Any]:
+    def ask(request: AskRequest, background: BackgroundTasks) -> dict[str, Any]:
         tracer = tracer_factory()
         start = time.perf_counter()
         try:
@@ -125,12 +138,82 @@ def create_app(
                 strict=request.strict,
             )
         except API_ERRORS as e:
+            tracer.flush()  # send the trace even when the call failed
             message = describe_api_error(e)
             if message is None:
                 raise
             raise HTTPException(status_code=http_status_for(e), detail=message) from e
-        finally:
-            tracer.flush()  # send the trace even when the call failed
+        except Exception:
+            tracer.flush()
+            raise
+        # Sent after the response, so the upload isn't part of the wait.
+        background.add_task(tracer.flush)
         return answer_payload(answer, time.perf_counter() - start)
+
+    @app.post("/api/ask/stream")
+    def ask_stream(request: AskRequest) -> StreamingResponse:
+        """Server-sent events, each a JSON object with a "type":
+
+        - status: {"stage": "searching" | "thinking"}
+        - text: {"text": ...}, the answer so far, link-filtered; replaces the last
+        - answer: {"answer": ...}, the validated payload /api/ask returns
+        - error: {"status": ..., "detail": ...}, in place of an answer
+        """
+        events: queue.Queue[dict[str, Any] | None] = queue.Queue()
+        threading.Thread(
+            target=stream_answer, args=(request, events), daemon=True
+        ).start()
+
+        def body() -> Iterator[str]:
+            yield sse({"type": "status", "stage": "searching"})
+            while (event := events.get()) is not None:
+                yield sse(event)
+
+        return StreamingResponse(
+            body(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache"},
+        )
+
+    def stream_answer(
+        request: AskRequest, events: queue.Queue[dict[str, Any] | None]
+    ) -> None:
+        tracer = tracer_factory()
+        text = FilteredText()
+
+        def on_text(delta: str) -> None:
+            snapshot = text.add(delta)
+            if snapshot is not None:
+                events.put({"type": "text", "text": snapshot})
+
+        streaming = StreamingClient(
+            client,
+            on_text,
+            on_generate=lambda: events.put({"type": "status", "stage": "thinking"}),
+        )
+        start = time.perf_counter()
+        try:
+            answer = answer_question(
+                request.question,
+                retriever,
+                streaming,
+                tracer=tracer,
+                rewrite=request.rewrite,
+                strict=request.strict,
+            )
+            payload = answer_payload(answer, time.perf_counter() - start)
+            events.put({"type": "answer", "answer": payload})
+        except Exception as e:  # noqa: BLE001 - the stream must always end
+            message = describe_api_error(e) if isinstance(e, API_ERRORS) else None
+            if message is None:
+                logger.exception("streamed answer failed")
+                events.put({"type": "error", "status": 500, "detail": None})
+            else:
+                status = http_status_for(e)
+                events.put({"type": "error", "status": status, "detail": message})
+        finally:
+            # The page has its answer by now; the upload is off the wait.
+            tracer.flush()
+            events.put(None)
 
     return app

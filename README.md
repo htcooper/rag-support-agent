@@ -77,6 +77,28 @@ A should-answer case passes when an expected page is retrieved and cited, and a 
 
 Full results: comparisons of [baseline and v1](evals/comparison-baseline-v1.md), [v1 and v2](evals/comparison-v1-v2.md), and [baseline and v2](evals/comparison-baseline-v2.md); [retrieval and wording variations](evals/retrieval.md); results for the [baseline](evals/results-baseline.md), [v1](evals/results-v1.md), and [v2](evals/results-v2.md); and [the question set](evals/cases.md). Per-case transcripts are in `.claude/hillclimb/support-answer/`.
 
+## Latency
+
+**Starting point.** v2 answers in three steps run one after another: the Haiku rewrite (about 1.5 s), the query embedding, and the Opus answer, which takes most of the time. The web UI showed nothing until the whole answer was ready, so in the eval people waited a median of 8.2 s, and up to 14.4 s, before seeing anything.
+
+**Improvement: stream the answer.** This change doesn't touch what Claude is asked or how answers are checked (`answer.py` is unchanged), so it needed no new eval run:
+
+- The answer call streams. The page shows the text as it's written, then replaces it with the validated answer, its citations, and its sources.
+- The Langfuse trace is uploaded after the response is sent, not before.
+
+Streamed text is model output, so the link allowlist applies before any of it leaves the server. A URL can't be checked until it's complete, so the server holds back the unfinished last word and runs the same link filter over everything it releases. Citations are sent only with the final, validated answer. A test splits a text full of disallowed links at every position, and checks that no streamed update ever contains one.
+
+Measured on the live APIs, one run per question and endpoint, so these show a direction, not an average:
+
+| Question | Before: nothing shown until | After: first text | After: full answer |
+|---|---|---|---|
+| "How do I return a 404 with a custom message?" | 6.2 s | 1.8 s to 1.9 s | 5.4 s to 5.8 s |
+| The CORS question above | 7.9 s | 5.4 s to 5.7 s | 11.4 s to 11.7 s |
+
+The time to the first text depends on how long Claude thinks before writing: under 1 s for the 404 question, and about 4 s for the CORS question. Two runs can't tell whether streaming changes the total time: each request generates a different answer, and the CORS answers in the streamed runs were long (about 1,800 characters). Moving the trace upload saved about 0.1 s.
+
+Streaming shortens how long people wait to start reading, not how long Claude takes to finish. The next options change answers or cost, so each would need an eval run: a lower effort setting, a smaller answer model, or fast mode.
+
 ## Security model
 
 The FastAPI docs are public, untrusted input that ends up in Claude's context, so ingest treats them as data to parse, never as code or instructions.
@@ -110,7 +132,7 @@ python -m venv .venv
 .venv/Scripts/python -I -m rag_support ingest   # download, verify, sanitize, chunk
 .venv/Scripts/python -I -m rag_support index    # embed 999 chunks, about $0.01
 .venv/Scripts/python -I -m rag_support ask "How do I enable CORS?"   # --no-rewrite / --no-strict for the baseline
-.venv/Scripts/python -m pytest                  # 210 tests, no API calls
+.venv/Scripts/python -m pytest                  # 220 tests, no API calls
 ```
 
 The eval runner (`evals/run.py`) costs about $3.40 to $3.70 per variant at two runs per case and refuses to run until its code is approved with `--approve-harness`, so grading can't change unnoticed between runs.
@@ -124,7 +146,7 @@ A local page for asking questions, served by FastAPI on 127.0.0.1 only, since ev
 .venv/Scripts/python -I -m rag_support ui       # http://127.0.0.1:8000
 ```
 
-The default view shows the answer and the doc pages it cites. Each source expands to the quoted passages and a link to the page.
+The answer appears as it's written, and the cited version replaces it when it's done (see [Latency](#latency)). The default view shows the answer and the doc pages it cites. Each source expands to the quoted passages and a link to the page.
 
 ![End-user view: a cited answer to the CORS question, with its first source expanded](docs/img/ui-answer.png)
 
